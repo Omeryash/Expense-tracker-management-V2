@@ -15,6 +15,7 @@ export default function Signup() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
   });
 
@@ -23,10 +24,19 @@ export default function Signup() {
     setLoading(true);
     setError("");
 
+    // 📱 Phone validation (10 digits)
+    const cleanedPhone = formData.phone.replace(/\D/g, "");
+    if (cleanedPhone.length !== 10) {
+      setError("Please enter a valid 10-digit phone number");
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.post("/auth/register", {
         name: formData.name,
         email: formData.email,
+        phone: cleanedPhone,
         password: formData.password,
       });
 
@@ -106,6 +116,23 @@ export default function Signup() {
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }
+              required
+            />
+
+            <Input
+              label="Phone Number"
+              type="tel"
+              name="phone"
+              autoComplete="tel"
+              placeholder="9876543210"
+              value={formData.phone}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                })
+              }
+              maxLength={10}
               required
             />
 
