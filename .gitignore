@@ -1,2 +1,9 @@
 .env
+**/.env
+
 node_modules/
+**/node_modules/
+
+npm-debug.log*
+
+fintrackbuddy-backend/fintrackbuddy_backup.sql
