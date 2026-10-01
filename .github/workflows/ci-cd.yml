@@ -1,4 +1,4 @@
-```yaml
+
 name: FinTrackBuddy CI/CD
 
 on:
@@ -120,4 +120,4 @@ jobs:
           context: ./fintrackbuddy-frontend
           push: true
           tags: yashdev04/fintrackbuddy-frontend:latest
-```
+
