@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============== USER ==============
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses   Expense[]
+  incomes    Income[]
+  categories Category[]
+  accounts   Account[]
+
+  @@map("users")
+}
+
+// ============== CATEGORY ==============
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String
+  icon      String   @default("📁")
+  color     String   @default("#3B82F6")
+  type      String   // "expense" | "income"
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, type])
+  @@map("categories")
+}
+
+// ============== ACCOUNT ==============
+model Account {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String   // "bank" | "wallet" | "cash" | "credit_card"
+  balance   Float    @default(0)
+  icon      String   @default("🏦")
+  color     String   @default("#3B82F6")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expenses Expense[]
+  incomes  Income[]
+
+  @@map("accounts")
+}
+
+// ============== EXPENSE ==============
+model Expense {
+  id          Int      @id @default(autoincrement())
+  title       String
+  amount      Float
+  category    String
+  date        DateTime
+  description String?
+  icon        String   @default("💸")
+  status      String   @default("completed")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId Int?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@map("expenses")
+}
+
+// ============== INCOME ==============
+model Income {
+  id        Int      @id @default(autoincrement())
+  source    String
+  amount    Float
+  category  String
+  date      DateTime
+  icon      String   @default("💰")
+  status    String   @default("completed")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId Int?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@map("incomes")
+}

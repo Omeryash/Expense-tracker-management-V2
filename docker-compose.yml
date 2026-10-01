@@ -1,0 +1,53 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fintrackbuddy-postgres
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    ports:
+      - "5433:5432"
+
+    restart: unless-stopped
+
+
+  backend:
+    image: yashdev04/fintrackbuddy-backend:latest
+    container_name: fintrackbuddy-backend
+
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 5000
+
+    ports:
+      - "8000:5000"
+
+    depends_on:
+      - postgres
+
+    restart: unless-stopped
+
+
+  frontend:
+    image: yashdev04/fintrackbuddy-frontend:latest
+    container_name: fintrackbuddy-frontend
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - backend
+
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
