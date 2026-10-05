@@ -2,14 +2,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
-const sendSms = require("../utils/sendSms");
 
-// ─────────────────────────────────────────────
-// REGISTER (updated — phone accept karta hai)
-// ─────────────────────────────────────────────
+// Register
 const register = async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, phone, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
@@ -23,13 +20,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Phone diya hai to duplicate check
+    // Check phone duplicate
     if (phone) {
-      const phoneTaken = await prisma.user.findUnique({
+      const existingPhone = await prisma.user.findUnique({
         where: { phone },
       });
-      if (phoneTaken) {
-        return res.status(400).json({ message: "Phone already registered" });
+      if (existingPhone) {
+        return res
+          .status(400)
+          .json({ message: "Phone number already registered" });
       }
     }
 
@@ -39,8 +38,8 @@ const register = async (req, res) => {
       data: {
         name,
         email: email.toLowerCase(),
-        password: hashedPassword,
         phone: phone || null,
+        password: hashedPassword,
       },
     });
 
@@ -59,9 +58,7 @@ const register = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────
-// LOGIN (unchanged)
-// ─────────────────────────────────────────────
+// Login
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -97,6 +94,10 @@ const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        location: user.location, // ✅ NEW
+        bio: user.bio, // ✅ NEW
+        avatar: user.avatar, // ✅ NEW
       },
     });
   } catch (error) {
@@ -105,9 +106,7 @@ const login = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────
-// GET ME (updated — phone bhi bhejta hai)
-// ─────────────────────────────────────────────
+// Get current user
 const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -117,6 +116,9 @@ const getMe = async (req, res) => {
         name: true,
         email: true,
         phone: true,
+        location: true, // ✅ NEW
+        bio: true, // ✅ NEW
+        avatar: true, // ✅ NEW
         createdAt: true,
       },
     });
@@ -131,21 +133,75 @@ const getMe = async (req, res) => {
   }
 };
 
-// ═════════════════════════════════════════════
-// FORGOT PASSWORD FLOW (NEW)
-// ═════════════════════════════════════════════
+// Change Password (user logged in)
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
 
-// ─────────────────────────────────────────────
-// STEP 1: OTP bhejo
-// POST /api/auth/forgot-password
-// body: { phone }
-// ─────────────────────────────────────────────
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters",
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: "New password must be different from current password",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Current password is incorrect",
+      });
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { password: hashedNewPassword },
+    });
+
+    res.json({
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ FORGOT PASSWORD (Phone-based OTP)
+// ============================================
+
 const forgotPassword = async (req, res) => {
   try {
     const { phone } = req.body;
 
     if (!phone) {
-      return res.status(400).json({ message: "Phone number required" });
+      return res.status(400).json({ message: "Phone number is required" });
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ message: "Invalid phone number format" });
     }
 
     const user = await prisma.user.findUnique({
@@ -153,152 +209,148 @@ const forgotPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res
-        .status(404)
-        .json({ message: "No account found with this phone number" });
-    }
-
-    // ⏱️ Rate limit: 60 seconds
-    if (
-      user.resetOtpLastSentAt &&
-      Date.now() - new Date(user.resetOtpLastSentAt).getTime() < 60_000
-    ) {
-      const remaining = Math.ceil(
-        (60_000 - (Date.now() - new Date(user.resetOtpLastSentAt).getTime())) /
-          1000,
-      );
-      return res.status(429).json({
-        message: `Please wait ${remaining}s before requesting a new OTP`,
+      return res.status(404).json({
+        message: "No account found with this phone number",
       });
     }
 
-    // 🎲 6-digit OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
+    if (user.resetOtpLastSentAt) {
+      const timeDiff = Date.now() - new Date(user.resetOtpLastSentAt).getTime();
+      if (timeDiff < 60000) {
+        const waitSec = Math.ceil((60000 - timeDiff) / 1000);
+        return res.status(429).json({
+          message: `Please wait ${waitSec} seconds before requesting again`,
+        });
+      }
+    }
 
-    // 🔒 bcrypt hash
-    const hash = await bcrypt.hash(otp, 10);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
 
-    // 💾 DB mein save
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        resetOtpHash: hash,
-        resetOtpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 min
+        resetOtpHash: otpHash,
+        resetOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         resetOtpAttempts: 0,
         resetOtpLastSentAt: new Date(),
       },
     });
 
-    // 📱 SMS bhejo
-    await sendSms(
-      phone,
-      `Your FinTrackBuddy password reset OTP is ${otp}. Valid for 10 minutes.`,
-    );
+    console.log(`\n🔐 OTP for ${phone}: ${otp}\n`);
 
-    res.json({ message: "OTP sent successfully" });
+    res.json({
+      message: "OTP sent successfully",
+      otp: otp,
+    });
   } catch (error) {
-    console.error("forgotPassword error:", error);
+    console.error("Forgot password error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ─────────────────────────────────────────────
-// STEP 2: OTP verify karo
-// POST /api/auth/verify-otp
-// body: { phone, otp }
-// ─────────────────────────────────────────────
 const verifyOtp = async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
     if (!phone || !otp) {
-      return res.status(400).json({ message: "Phone and OTP required" });
+      return res.status(400).json({
+        message: "Phone and OTP are required",
+      });
     }
 
-    const user = await prisma.user.findUnique({ where: { phone } });
+    const user = await prisma.user.findUnique({
+      where: { phone },
+    });
 
-    if (!user || !user.resetOtpHash || !user.resetOtpExpiry) {
-      return res.status(400).json({ message: "No OTP request found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // ⏰ Expiry check
-    if (new Date(user.resetOtpExpiry) < new Date()) {
-      return res.status(400).json({ message: "OTP has expired" });
+    if (user.resetOtpAttempts >= 5) {
+      return res.status(429).json({
+        message: "Too many attempts. Please request a new OTP.",
+      });
     }
 
-    // 🚫 Attempts limit
-    if (user.resetOtpAttempts >= 3) {
+    if (
+      !user.resetOtpExpiry ||
+      Date.now() > new Date(user.resetOtpExpiry).getTime()
+    ) {
       return res
-        .status(429)
-        .json({ message: "Too many wrong attempts. Request a new OTP." });
+        .status(400)
+        .json({ message: "OTP expired. Please request a new one." });
     }
 
-    // ✅ bcrypt compare
-    const match = await bcrypt.compare(otp, user.resetOtpHash);
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
 
-    if (!match) {
+    if (otpHash !== user.resetOtpHash) {
       await prisma.user.update({
         where: { id: user.id },
-        data: { resetOtpAttempts: { increment: 1 } },
+        data: { resetOtpAttempts: user.resetOtpAttempts + 1 },
       });
-      return res.status(400).json({ message: "Invalid OTP" });
+
+      const remaining = 4 - user.resetOtpAttempts;
+      return res.status(400).json({
+        message: `Invalid OTP. ${remaining} attempts remaining.`,
+      });
     }
 
-    res.json({ message: "OTP verified successfully" });
+    const resetToken = jwt.sign(
+      { userId: user.id, phone: user.phone, purpose: "password-reset" },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" },
+    );
+
+    res.json({
+      message: "OTP verified successfully",
+      resetToken,
+    });
   } catch (error) {
-    console.error("verifyOtp error:", error);
+    console.error("Verify OTP error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ─────────────────────────────────────────────
-// STEP 3: Naya password set karo
-// POST /api/auth/reset-password
-// body: { phone, otp, newPassword }
-// ─────────────────────────────────────────────
 const resetPassword = async (req, res) => {
   try {
-    const { phone, otp, newPassword } = req.body;
+    const { resetToken, newPassword } = req.body;
 
-    if (!phone || !otp || !newPassword) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({
+        message: "Reset token and new password are required",
+      });
     }
 
     if (newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({ message: "Password must be at least 6 characters" });
-    }
-
-    const user = await prisma.user.findUnique({ where: { phone } });
-
-    if (!user || !user.resetOtpHash || !user.resetOtpExpiry) {
-      return res.status(400).json({ message: "No OTP request found" });
-    }
-
-    if (new Date(user.resetOtpExpiry) < new Date()) {
-      return res.status(400).json({ message: "OTP has expired" });
-    }
-
-    if (user.resetOtpAttempts >= 3) {
-      return res.status(429).json({ message: "Too many wrong attempts" });
-    }
-
-    // 🔍 OTP dobara verify
-    const match = await bcrypt.compare(otp, user.resetOtpHash);
-
-    if (!match) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { resetOtpAttempts: { increment: 1 } },
+      return res.status(400).json({
+        message: "Password must be at least 6 characters",
       });
-      return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    // 🔐 Naya password hash
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({
+        message: "Invalid or expired reset token",
+      });
+    }
+
+    if (decoded.purpose !== "password-reset") {
+      return res.status(400).json({ message: "Invalid reset token" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // 💾 Update + OTP fields clear
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -310,9 +362,131 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    res.json({ message: "Password reset successfully. Please login." });
+    res.json({ message: "Password reset successfully" });
   } catch (error) {
-    console.error("resetPassword error:", error);
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ NEW: UPDATE PROFILE
+// ============================================
+const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, location, bio } = req.body;
+
+    if (name !== undefined && name.trim().length === 0) {
+      return res.status(400).json({ message: "Name cannot be empty" });
+    }
+
+    if (phone !== undefined && phone !== null && phone !== "") {
+      if (!/^\d{10}$/.test(phone)) {
+        return res.status(400).json({ message: "Phone must be 10 digits" });
+      }
+
+      const existingPhone = await prisma.user.findFirst({
+        where: {
+          phone,
+          NOT: { id: req.userId },
+        },
+      });
+
+      if (existingPhone) {
+        return res.status(400).json({ message: "Phone number already in use" });
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        name: name !== undefined ? name : undefined,
+        phone: phone !== undefined ? (phone === "" ? null : phone) : undefined,
+        location: location !== undefined ? location : undefined,
+        bio: bio !== undefined ? bio : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        bio: true,
+        avatar: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ NEW: UPLOAD AVATAR
+// ============================================
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const avatarPath = `/uploads/${req.file.filename}`;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { avatar: avatarPath },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        bio: true,
+        avatar: true,
+      },
+    });
+
+    res.json({
+      message: "Avatar uploaded successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Upload avatar error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ NEW: REMOVE AVATAR
+// ============================================
+const removeAvatar = async (req, res) => {
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { avatar: null },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        bio: true,
+        avatar: true,
+      },
+    });
+
+    res.json({
+      message: "Avatar removed successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Remove avatar error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -321,7 +495,11 @@ module.exports = {
   register,
   login,
   getMe,
+  changePassword,
   forgotPassword,
   verifyOtp,
   resetPassword,
+  updateProfile,
+  uploadAvatar,
+  removeAvatar,
 };
