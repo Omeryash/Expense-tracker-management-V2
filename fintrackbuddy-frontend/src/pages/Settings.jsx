@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import {
   Bell,
@@ -14,16 +15,22 @@ import {
   Download,
   LogOut,
   CheckCircle2,
+  XCircle,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useExpenses } from "../context/ExpenseContext";
+import { AuthContext } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const { currency, setCurrency, currencies } = useCurrency();
   const { expenses } = useExpenses();
+  const { changePassword } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState({
@@ -37,6 +44,91 @@ export default function Settings() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageData, setMessageData] = useState({
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  // Change password form state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
+  const showMessage = (type, title, message) => {
+    setMessageData({ type, title, message });
+    setShowMessageModal(true);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError("");
+
+    if (!passwordData.currentPassword) {
+      setPasswordError("Please enter your current password");
+      return;
+    }
+    if (!passwordData.newPassword) {
+      setPasswordError("Please enter a new password");
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters");
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError("New password must be different from current");
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      await changePassword(
+        passwordData.currentPassword,
+        passwordData.newPassword,
+      );
+      setShowPasswordModal(false);
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      showMessage(
+        "success",
+        "Password Changed!",
+        "Your password has been updated successfully.",
+      );
+    } catch (error) {
+      const msg = error.response?.data?.message || "Failed to change password";
+      setPasswordError(msg);
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleOpenPasswordModal = () => {
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setPasswordError("");
+    setShowPasswordModal(true);
+  };
 
   const handleExport = () => {
     if (expenses.length === 0) {
@@ -186,6 +278,30 @@ export default function Settings() {
           </p>
         </div>
 
+        {/* ✅ Change Password Card */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <Lock className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Change Password</h3>
+                <p className="text-sm text-muted-foreground">
+                  Update your account password
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleOpenPasswordModal}
+              variant="outline"
+              size="sm"
+            >
+              Change
+            </Button>
+          </div>
+        </Card>
+
         <div className="space-y-4">
           {sections.map((section, index) => (
             <motion.div
@@ -232,7 +348,210 @@ export default function Settings() {
         </Card>
       </div>
 
-      {/* ✅ Export Success Modal - PERFECTLY CENTERED */}
+      {/* ✅ Change Password Modal */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPasswordModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex items-center justify-between p-5 border-b border-border sticky top-0 bg-card z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Lock className="w-5 h-5 text-primary" />
+                    </div>
+                    <h2 className="text-xl font-bold">Change Password</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowPasswordModal(false)}
+                    className="p-2 rounded-lg hover:bg-accent"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleChangePassword} className="p-5 space-y-4">
+                  {passwordError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-600 dark:text-red-400">
+                      ⚠️ {passwordError}
+                    </div>
+                  )}
+
+                  <Input
+                    label="Current Password"
+                    type={showCurrentPassword ? "text" : "password"}
+                    placeholder="Enter your current password"
+                    value={passwordData.currentPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        currentPassword: e.target.value,
+                      })
+                    }
+                    icon={
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowCurrentPassword(!showCurrentPassword)
+                        }
+                        className="focus:outline-none"
+                      >
+                        {showCurrentPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    }
+                    required
+                  />
+
+                  <Input
+                    label="New Password"
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Minimum 6 characters"
+                    value={passwordData.newPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        newPassword: e.target.value,
+                      })
+                    }
+                    icon={
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="focus:outline-none"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    }
+                    required
+                  />
+
+                  <Input
+                    label="Confirm New Password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-enter new password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
+                    icon={
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="focus:outline-none"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    }
+                    required
+                  />
+
+                  {/* Password Requirements */}
+                  {passwordData.newPassword && (
+                    <div className="p-3 bg-muted/50 rounded-xl text-xs space-y-1">
+                      <p className="font-medium text-muted-foreground mb-2">
+                        Password Requirements:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            passwordData.newPassword.length >= 6
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }
+                        >
+                          {passwordData.newPassword.length >= 6 ? "✅" : "❌"}
+                        </span>
+                        <span>At least 6 characters</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            passwordData.currentPassword !==
+                            passwordData.newPassword
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }
+                        >
+                          {passwordData.currentPassword !==
+                          passwordData.newPassword
+                            ? "✅"
+                            : "❌"}
+                        </span>
+                        <span>Different from current password</span>
+                      </div>
+                      {passwordData.confirmPassword && (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={
+                              passwordData.newPassword ===
+                              passwordData.confirmPassword
+                                ? "text-green-500"
+                                : "text-red-500"
+                            }
+                          >
+                            {passwordData.newPassword ===
+                            passwordData.confirmPassword
+                              ? "✅"
+                              : "❌"}
+                          </span>
+                          <span>Passwords match</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      type="submit"
+                      loading={passwordLoading}
+                      className="flex-1"
+                    >
+                      Update Password
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowPasswordModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Export Success Modal */}
       <AnimatePresence>
         {showExportModal && (
           <>
@@ -290,6 +609,70 @@ export default function Settings() {
                       onClick={() => setShowExportModal(false)}
                     >
                       Got it
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Message Modal (Success/Error) */}
+      <AnimatePresence>
+        {showMessageModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMessageModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="relative w-full max-w-sm"
+              >
+                <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+                  <div className="p-8 text-center">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        type: "spring",
+                        delay: 0.15,
+                        stiffness: 200,
+                      }}
+                      className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
+                        messageData.type === "success"
+                          ? "bg-green-500/10"
+                          : "bg-red-500/10"
+                      }`}
+                    >
+                      {messageData.type === "success" ? (
+                        <CheckCircle2 className="w-10 h-10 text-green-500" />
+                      ) : (
+                        <XCircle className="w-10 h-10 text-red-500" />
+                      )}
+                    </motion.div>
+
+                    <h3 className="text-2xl font-bold mb-2">
+                      {messageData.title}
+                    </h3>
+
+                    <p className="text-muted-foreground text-sm mb-6">
+                      {messageData.message}
+                    </p>
+
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowMessageModal(false)}
+                    >
+                      OK
                     </Button>
                   </div>
                 </div>

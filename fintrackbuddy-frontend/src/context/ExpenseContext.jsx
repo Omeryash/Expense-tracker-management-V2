@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "../services/api";
+import { AuthContext } from "./AuthContext";
 
 const ExpenseContext = createContext();
 
@@ -11,31 +12,14 @@ export const useExpenses = () => {
   return context;
 };
 
-// ---------- Helpers ----------
-// Backend might return: [...], { data: [...] }, { expenses: [...] }, { incomes: [...] }, { result: [...] }
-const toArray = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.expenses)) return payload.expenses;
-  if (Array.isArray(payload?.incomes)) return payload.incomes;
-  if (Array.isArray(payload?.result)) return payload.result;
-  return [];
-};
-
-// For single-item responses (add/update)
-const unwrapItem = (payload) => payload?.data ?? payload;
-
-// Normalize MongoDB _id → id so all your .find/.filter work
-const withId = (item) => ({ ...item, id: item.id ?? item._id });
-
-// ---------- Provider ----------
 export const ExpenseProvider = ({ children }) => {
+  const { token } = useContext(AuthContext);
+
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
-    const token = localStorage.getItem("token");
     if (!token) {
       setExpenses([]);
       setIncomes([]);
@@ -49,19 +33,11 @@ export const ExpenseProvider = ({ children }) => {
         api.get("/incomes"),
       ]);
 
-      // Debug — remove later
-      // console.log("expRes.data:", expRes.data);
-      // console.log("incRes.data:", incRes.data);
+      setIncomes(incRes.data);
 
-      const expensesArr = toArray(expRes.data).map(withId);
-      const incomesArr = toArray(incRes.data).map(withId);
-
-      setIncomes(incomesArr);
-
-      // Combine: expenses + incomes into one array
       const allData = [
-        ...expensesArr.map((e) => ({ ...e, type: "expense" })),
-        ...incomesArr.map((i) => ({
+        ...expRes.data.map((e) => ({ ...e, type: "expense" })),
+        ...incRes.data.map((i) => ({
           ...i,
           type: "income",
           title: i.source,
@@ -78,17 +54,16 @@ export const ExpenseProvider = ({ children }) => {
     }
   };
 
+  // ✅ Token change hone pe dobara fetch karo
   useEffect(() => {
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const addExpense = async (data) => {
     try {
       const response = await api.post("/expenses", data);
-      const newExpense = {
-        ...withId(unwrapItem(response.data)),
-        type: "expense",
-      };
+      const newExpense = { ...response.data, type: "expense" };
       setExpenses((prev) => [newExpense, ...prev]);
       return newExpense;
     } catch (error) {
@@ -106,16 +81,13 @@ export const ExpenseProvider = ({ children }) => {
         date: data.date,
         icon: data.icon,
       });
-
-      const raw = withId(unwrapItem(response.data));
       const newIncome = {
-        ...raw,
+        ...response.data,
         type: "income",
-        title: raw.source,
+        title: response.data.source,
       };
-
       setExpenses((prev) => [newIncome, ...prev]);
-      setIncomes((prev) => [raw, ...prev]);
+      setIncomes((prev) => [response.data, ...prev]);
       return newIncome;
     } catch (error) {
       console.error("Add income error:", error);
@@ -134,23 +106,21 @@ export const ExpenseProvider = ({ children }) => {
           : data;
 
       const response = await api.put(`/${endpoint}/${id}`, updateData);
-      const raw = withId(unwrapItem(response.data));
 
       setExpenses((prev) =>
         prev.map((e) =>
           e.id === id
             ? {
-                ...raw,
+                ...response.data,
                 type,
-                title: type === "income" ? raw.source : raw.title,
+                title:
+                  type === "income"
+                    ? response.data.source
+                    : response.data.title,
               }
             : e,
         ),
       );
-
-      if (type === "income") {
-        setIncomes((prev) => prev.map((i) => (i.id === id ? raw : i)));
-      }
     } catch (error) {
       console.error("Update error:", error);
       throw error;

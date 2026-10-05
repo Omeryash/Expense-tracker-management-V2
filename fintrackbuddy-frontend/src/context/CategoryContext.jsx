@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "../services/api";
+import { AuthContext } from "./AuthContext";
 
 const CategoryContext = createContext();
 
@@ -11,26 +12,13 @@ export const useCategories = () => {
   return context;
 };
 
-// ---------- Helpers ----------
-const toArray = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.categories)) return payload.categories;
-  if (Array.isArray(payload?.result)) return payload.result;
-  return [];
-};
-
-const unwrapItem = (payload) => payload?.data ?? payload;
-
-const withId = (item) => ({ ...item, id: item.id ?? item._id });
-
-// ---------- Provider ----------
 export const CategoryProvider = ({ children }) => {
+  const { token } = useContext(AuthContext);
+
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchCategories = async () => {
-    const token = localStorage.getItem("token");
     if (!token) {
       setCategories([]);
       return;
@@ -39,67 +27,45 @@ export const CategoryProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await api.get("/categories");
-
-      // Debug — remove after confirming
-      // console.log("categories response:", response.data);
-
-      const list = toArray(response.data).map(withId);
-      setCategories(list);
+      setCategories(response.data);
     } catch (error) {
       console.error("Fetch categories error:", error);
-      setCategories([]); // never leave it undefined
+      setCategories([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ Token change hone pe dobara fetch karo
   useEffect(() => {
     fetchCategories();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const addCategory = async (data) => {
-    try {
-      const response = await api.post("/categories", data);
-      const newCategory = withId(unwrapItem(response.data));
-      setCategories((prev) => [...prev, newCategory]);
-      return newCategory;
-    } catch (error) {
-      console.error("Add category error:", error);
-      throw error;
-    }
+    const response = await api.post("/categories", data);
+    setCategories((prev) => [...prev, response.data]);
+    return response.data;
   };
 
   const updateCategory = async (id, data) => {
-    try {
-      const response = await api.put(`/categories/${id}`, data);
-      const updated = withId(unwrapItem(response.data));
-      setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
-      return updated;
-    } catch (error) {
-      console.error("Update category error:", error);
-      throw error;
-    }
+    const response = await api.put(`/categories/${id}`, data);
+    setCategories((prev) => prev.map((c) => (c.id === id ? response.data : c)));
+    return response.data;
   };
 
   const deleteCategory = async (id) => {
-    try {
-      await api.delete(`/categories/${id}`);
-      setCategories((prev) => prev.filter((c) => c.id !== id));
-    } catch (error) {
-      console.error("Delete category error:", error);
-      throw error;
-    }
+    await api.delete(`/categories/${id}`);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // ---------- Derived (safe) ----------
-  const safeCategories = Array.isArray(categories) ? categories : [];
-  const expenseCategories = safeCategories.filter((c) => c.type === "expense");
-  const incomeCategories = safeCategories.filter((c) => c.type === "income");
+  const expenseCategories = categories.filter((c) => c.type === "expense");
+  const incomeCategories = categories.filter((c) => c.type === "income");
 
   return (
     <CategoryContext.Provider
       value={{
-        categories: safeCategories,
+        categories,
         expenseCategories,
         incomeCategories,
         loading,

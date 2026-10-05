@@ -34,10 +34,12 @@ function AppRoutes() {
   return (
     <Router>
       <Routes>
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
@@ -110,6 +112,8 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        {/* Redirects */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>

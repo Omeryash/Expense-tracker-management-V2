@@ -12,6 +12,8 @@ import {
   CreditCard,
   X,
 } from "lucide-react";
+import { useExpenses } from "../../context/ExpenseContext";
+import { useCurrency } from "../../context/CurrencyContext";
 
 const navItems = [
   { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -26,6 +28,37 @@ const navItems = [
 ];
 
 export const Sidebar = ({ isOpen, onClose }) => {
+  const { expenses } = useExpenses();
+  const { formatAmount } = useCurrency();
+
+  // ✅ Current month ka data
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+
+  const monthlyData = expenses.filter((item) => {
+    const itemDate = new Date(item.date);
+    return (
+      itemDate.getMonth() === currentMonth &&
+      itemDate.getFullYear() === currentYear
+    );
+  });
+
+  const monthlyIncome = monthlyData
+    .filter((item) => item.type === "income")
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const monthlyExpense = monthlyData
+    .filter((item) => item.type === "expense")
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const monthlySavings = monthlyIncome - monthlyExpense;
+
+  const savingsPercentage =
+    monthlyIncome > 0
+      ? Math.min(Math.max((monthlySavings / monthlyIncome) * 100, 0), 100)
+      : 0;
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-border flex items-center justify-between">
@@ -70,19 +103,39 @@ export const Sidebar = ({ isOpen, onClose }) => {
         ))}
       </nav>
 
+      {/* ✅ Dynamic Monthly Savings */}
       <div className="p-6 border-t border-border">
         <div className="glass rounded-xl p-4">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-green-500" />
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                monthlySavings >= 0 ? "bg-green-500/20" : "bg-red-500/20"
+              }`}
+            >
+              <TrendingUp
+                className={`w-5 h-5 ${
+                  monthlySavings >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Monthly Savings</p>
-              <p className="text-lg font-bold">$1,245</p>
+              <p
+                className={`text-lg font-bold truncate ${
+                  monthlySavings >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {formatAmount(monthlySavings)}
+              </p>
             </div>
           </div>
           <div className="h-1 bg-muted rounded-full overflow-hidden">
-            <div className="w-3/4 h-full bg-green-500 rounded-full" />
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                monthlySavings >= 0 ? "bg-green-500" : "bg-red-500"
+              }`}
+              style={{ width: `${savingsPercentage}%` }}
+            />
           </div>
         </div>
       </div>

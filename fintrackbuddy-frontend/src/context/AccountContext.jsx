@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "../services/api";
+import { AuthContext } from "./AuthContext";
 
 const AccountContext = createContext();
 
@@ -26,11 +27,12 @@ const withId = (item) => ({ ...item, id: item.id ?? item._id });
 
 // ---------- Provider ----------
 export const AccountProvider = ({ children }) => {
+  const { token } = useContext(AuthContext);
+
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchAccounts = async () => {
-    const token = localStorage.getItem("token");
     if (!token) {
       setAccounts([]);
       return;
@@ -39,9 +41,6 @@ export const AccountProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await api.get("/accounts");
-
-      // Debug — remove after confirming
-      // console.log("accounts response:", response.data);
 
       const list = toArray(response.data).map(withId);
       setAccounts(list);
@@ -53,16 +52,17 @@ export const AccountProvider = ({ children }) => {
     }
   };
 
+  // ✅ Token change hone pe dobara fetch karo
   useEffect(() => {
     fetchAccounts();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const addAccount = async (data) => {
     try {
       const response = await api.post("/accounts", data);
       const newAccount = withId(unwrapItem(response.data));
 
-      // Agar isDefault true hai to purane default ko false karo
       setAccounts((prev) => {
         const list = Array.isArray(prev) ? prev : [];
         const cleared = newAccount.isDefault
