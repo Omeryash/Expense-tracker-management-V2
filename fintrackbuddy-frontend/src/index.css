@@ -1,89 +1,220 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* ========================================
+     🎨 MIDNIGHT BLUE PALETTE - LIGHT MODE
+     ======================================== */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 1rem;
+    --background: 220 25% 97%;           /* #F5F7FA */
+    --foreground: 222 47% 11%;           /* #0F172A */
+    
+    --card: 0 0% 100%;                   /* #FFFFFF */
+    --card-foreground: 222 47% 11%;      /* #0F172A */
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    
+    --primary: 217 91% 60%;              /* #3B82F6 */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 220 14% 96%;            /* #F1F5F9 */
+    --secondary-foreground: 222 47% 11%;
+    
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;     /* #64748B */
+    
+    --accent: 262 83% 58%;               /* #8B5CF6 */
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;            /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 214 32% 91%;               /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    
+    --radius: 0.75rem;
   }
 
+  /* ========================================
+     🎨 MIDNIGHT BLUE PALETTE - DARK MODE
+     ======================================== */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --background: 222 47% 6%;            /* #0A0E1A - Deep Navy */
+    --foreground: 210 40% 98%;           /* #F9FAFB */
+    
+    --card: 222 40% 11%;                 /* #131826 - Slightly lighter */
     --card-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 217 91% 60%;              /* #3B82F6 - Vibrant blue */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 217 33% 17%;            /* #1F2937 */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;     /* #9CA3AF */
+    
+    --accent: 262 83% 58%;               /* #8B5CF6 - Purple */
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;            /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 217 33% 17%;               /* #1F2937 */
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
   }
 }
 
-* {
-  @apply border-border;
-}
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-body {
-  @apply bg-background text-foreground;
-  font-family: 'Inter', sans-serif;
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
 }
 
 @layer utilities {
-  .glass {
-    @apply bg-white/10 backdrop-blur-md border border-white/20;
-  }
-  
-  .dark .glass {
-    @apply bg-black/20 border-white/10;
-  }
-  
+  /* ========================================
+     🎨 GRADIENT UTILITIES
+     ======================================== */
   .gradient-primary {
-    @apply bg-gradient-to-r from-blue-600 to-purple-600;
+    background: linear-gradient(135deg, #3B82F6 0%, #6366F1 50%, #8B5CF6 100%);
   }
-  
+
   .gradient-success {
-    @apply bg-gradient-to-r from-emerald-500 to-teal-600;
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
   }
-  
+
   .gradient-danger {
-    @apply bg-gradient-to-r from-red-500 to-rose-600;
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
   }
-  
+
+  .gradient-warning {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  }
+
+  .gradient-dark {
+    background: linear-gradient(135deg, #0A0E1A 0%, #131826 100%);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #60A5FA 0%, #818CF8 50%, #A78BFA 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ========================================
+     💎 GLASSMORPHISM
+     ======================================== */
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* ========================================
+     ✨ CARD EFFECTS
+     ======================================== */
   .card-hover {
-    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl;
+    @apply transition-all duration-300;
   }
-  
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -10px rgba(59, 130, 246, 0.15);
+  }
+
+  /* ========================================
+     🌟 GLOW EFFECTS
+     ======================================== */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+
+  /* ========================================
+     🎭 ANIMATIONS
+     ======================================== */
   .animate-in {
-    @apply animate-fadeIn;
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  /* ========================================
+     📝 FORM STYLING
+     ======================================== */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.5);
+    cursor: pointer;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+  }
+
+  /* ========================================
+     🎯 FOCUS RING
+     ======================================== */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
   }
 }
 
+/* ========================================
+   🎨 KEYFRAMES
+   ======================================== */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -95,6 +226,44 @@ body {
   }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* ========================================
+   🎨 SKELETON LOADING
+   ======================================== */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* ========================================
+   🎨 SELECTION
+   ======================================== */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: hsl(var(--foreground));
 }
