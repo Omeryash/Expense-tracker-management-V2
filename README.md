@@ -941,3 +941,77 @@ npx prisma migrate reset
         ▼            ▼            ▼
     Frontend      Backend      PostgreSQL
     Container     Container     Container
+
+
+    ## Database Change & Deployment
+
+Whenever a new field/model is added or modified in `prisma/schema.prisma`:
+
+### 1. Create Migration
+
+```bash
+cd backend
+npx prisma migrate dev --name <migration-name>
+```
+
+### 2. Test Locally
+
+```bash
+npm run dev
+```
+
+### 3. Push Changes to GitHub
+
+Push the updated code and Prisma migration to GitHub.
+
+GitHub Actions will automatically:
+
+```text
+Build Docker Image
+        ↓
+Push Image to Docker Hub
+```
+
+### 4. Pull Latest Image on Deployment Server
+
+```bash
+docker compose pull
+```
+
+### 5. Start/Update Containers
+
+```bash
+docker compose up -d
+```
+
+### 6. Apply Database Migration
+
+```bash
+docker exec -it fintrackbuddy-backend npx prisma migrate deploy
+```
+
+### Complete Flow
+
+```text
+Modify schema.prisma
+        ↓
+npx prisma migrate dev --name <migration-name>
+        ↓
+Test locally
+        ↓
+Push changes to GitHub
+        ↓
+GitHub Actions
+        ↓
+Build Docker Image
+        ↓
+Push Image to Docker Hub
+        ↓
+docker compose pull
+        ↓
+docker compose up -d
+        ↓
+docker exec -it fintrackbuddy-backend npx prisma migrate deploy
+```
+
+
