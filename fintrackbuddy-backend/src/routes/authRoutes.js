@@ -11,6 +11,10 @@ const {
   updateProfile,
   uploadAvatar,
   removeAvatar,
+  verifyLoginOtp,
+  enable2FA,
+  disable2FA,
+  get2FAStatus,
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -28,7 +32,7 @@ router.post("/forgot-password", forgotPassword);
 router.post("/verify-otp", verifyOtp);
 router.post("/reset-password", resetPassword);
 
-// ✅ NEW: Profile Management
+// ── Profile Management ──
 router.put("/profile", authMiddleware, updateProfile);
 router.post(
   "/profile/avatar",
@@ -37,5 +41,11 @@ router.post(
   uploadAvatar,
 );
 router.delete("/profile/avatar", authMiddleware, removeAvatar);
+
+// ✅ NEW: Two-Factor Authentication (2FA)
+router.post("/verify-login-otp", verifyLoginOtp); // Login ke waqt OTP verify (public)
+router.post("/2fa/enable", authMiddleware, enable2FA); // 2FA enable (protected)
+router.post("/2fa/disable", authMiddleware, disable2FA); // 2FA disable (protected)
+router.get("/2fa/status", authMiddleware, get2FAStatus); // 2FA status (protected)
 
 module.exports = router;

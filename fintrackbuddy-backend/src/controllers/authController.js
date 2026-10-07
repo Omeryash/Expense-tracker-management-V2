@@ -81,6 +81,31 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // ✅ 2FA Check
+    if (user.twoFactorEnabled) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorOtpHash: otpHash,
+          twoFactorOtpExpiry: new Date(Date.now() + 5 * 60 * 1000),
+          twoFactorOtpAttempts: 0,
+        },
+      });
+
+      // ✅ OTP terminal mein print karo (development ke liye)
+      console.log(`\n🔐 2FA OTP for ${user.email}: ${otp}\n`);
+
+      return res.json({
+        message: "2FA required",
+        requires2FA: true,
+        userId: user.id,
+      });
+    }
+
+    // No 2FA — direct login
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
@@ -95,9 +120,10 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        location: user.location, // ✅ NEW
-        bio: user.bio, // ✅ NEW
-        avatar: user.avatar, // ✅ NEW
+        location: user.location,
+        bio: user.bio,
+        avatar: user.avatar,
+        twoFactorEnabled: user.twoFactorEnabled, // ✅ ADD
       },
     });
   } catch (error) {
@@ -116,9 +142,10 @@ const getMe = async (req, res) => {
         name: true,
         email: true,
         phone: true,
-        location: true, // ✅ NEW
-        bio: true, // ✅ NEW
-        avatar: true, // ✅ NEW
+        location: true,
+        bio: true,
+        avatar: true,
+        twoFactorEnabled: true,
         createdAt: true,
       },
     });
@@ -133,7 +160,7 @@ const getMe = async (req, res) => {
   }
 };
 
-// Change Password (user logged in)
+// Change Password
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -179,9 +206,7 @@ const changePassword = async (req, res) => {
       data: { password: hashedNewPassword },
     });
 
-    res.json({
-      message: "Password changed successfully",
-    });
+    res.json({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
     res.status(500).json({ message: "Server error" });
@@ -189,9 +214,8 @@ const changePassword = async (req, res) => {
 };
 
 // ============================================
-// ✅ FORGOT PASSWORD (Phone-based OTP)
+// FORGOT PASSWORD (Phone-based OTP)
 // ============================================
-
 const forgotPassword = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -237,7 +261,8 @@ const forgotPassword = async (req, res) => {
       },
     });
 
-    console.log(`\n🔐 OTP for ${phone}: ${otp}\n`);
+    // ✅ OTP terminal mein print (development)
+    console.log(`\n🔐 Password Reset OTP for ${phone}: ${otp}\n`);
 
     res.json({
       message: "OTP sent successfully",
@@ -370,7 +395,7 @@ const resetPassword = async (req, res) => {
 };
 
 // ============================================
-// ✅ NEW: UPDATE PROFILE
+// UPDATE PROFILE
 // ============================================
 const updateProfile = async (req, res) => {
   try {
@@ -413,6 +438,7 @@ const updateProfile = async (req, res) => {
         location: true,
         bio: true,
         avatar: true,
+        twoFactorEnabled: true,
         createdAt: true,
       },
     });
@@ -428,7 +454,7 @@ const updateProfile = async (req, res) => {
 };
 
 // ============================================
-// ✅ NEW: UPLOAD AVATAR
+// UPLOAD AVATAR
 // ============================================
 const uploadAvatar = async (req, res) => {
   try {
@@ -449,6 +475,7 @@ const uploadAvatar = async (req, res) => {
         location: true,
         bio: true,
         avatar: true,
+        twoFactorEnabled: true,
       },
     });
 
@@ -463,7 +490,7 @@ const uploadAvatar = async (req, res) => {
 };
 
 // ============================================
-// ✅ NEW: REMOVE AVATAR
+// REMOVE AVATAR
 // ============================================
 const removeAvatar = async (req, res) => {
   try {
@@ -478,6 +505,7 @@ const removeAvatar = async (req, res) => {
         location: true,
         bio: true,
         avatar: true,
+        twoFactorEnabled: true,
       },
     });
 
@@ -487,6 +515,173 @@ const removeAvatar = async (req, res) => {
     });
   } catch (error) {
     console.error("Remove avatar error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ VERIFY LOGIN OTP (2FA Login)
+// ============================================
+const verifyLoginOtp = async (req, res) => {
+  try {
+    const { userId, otp } = req.body;
+
+    if (!userId || !otp) {
+      return res.status(400).json({
+        message: "User ID and OTP are required",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.twoFactorOtpAttempts >= 5) {
+      return res.status(429).json({
+        message: "Too many attempts. Please login again.",
+      });
+    }
+
+    if (
+      !user.twoFactorOtpExpiry ||
+      Date.now() > new Date(user.twoFactorOtpExpiry).getTime()
+    ) {
+      return res.status(400).json({
+        message: "OTP expired. Please login again.",
+      });
+    }
+
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+
+    if (otpHash !== user.twoFactorOtpHash) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorOtpAttempts: user.twoFactorOtpAttempts + 1 },
+      });
+
+      const remaining = 4 - user.twoFactorOtpAttempts;
+      return res.status(400).json({
+        message: `Invalid OTP. ${remaining} attempts remaining.`,
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        twoFactorOtpHash: null,
+        twoFactorOtpExpiry: null,
+        twoFactorOtpAttempts: 0,
+      },
+    });
+
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        location: user.location,
+        bio: user.bio,
+        avatar: user.avatar,
+        twoFactorEnabled: user.twoFactorEnabled, // ✅ ADD
+      },
+    });
+  } catch (error) {
+    console.error("Verify login OTP error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ ENABLE 2FA
+// ============================================
+const enable2FA = async (req, res) => {
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { twoFactorEnabled: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        twoFactorEnabled: true,
+      },
+    });
+
+    res.json({
+      message: "2FA enabled successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Enable 2FA error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ DISABLE 2FA
+// ============================================
+const disable2FA = async (req, res) => {
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorOtpHash: null,
+        twoFactorOtpExpiry: null,
+        twoFactorOtpAttempts: 0,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        twoFactorEnabled: true,
+      },
+    });
+
+    res.json({
+      message: "2FA disabled successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Disable 2FA error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ============================================
+// ✅ GET 2FA STATUS
+// ============================================
+const get2FAStatus = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        twoFactorEnabled: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      twoFactorEnabled: user.twoFactorEnabled,
+    });
+  } catch (error) {
+    console.error("Get 2FA status error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -502,4 +697,8 @@ module.exports = {
   updateProfile,
   uploadAvatar,
   removeAvatar,
+  verifyLoginOtp,
+  enable2FA,
+  disable2FA,
+  get2FAStatus,
 };

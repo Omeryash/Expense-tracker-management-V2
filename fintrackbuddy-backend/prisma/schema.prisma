@@ -17,10 +17,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ✅ NEW: Profile fields
-  location  String?           // User's location (city, country)
-  avatar    String?           // Profile photo URL/path
-  bio       String?           // Short bio/about
+  // ✅ NEW: Two-Factor Authentication
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorOtpHash     String?
+  twoFactorOtpExpiry   DateTime?
+  twoFactorOtpAttempts Int       @default(0)
+
+  // ✅ Profile fields
+  location  String?
+  avatar    String?
+  bio       String?
 
   // 🔐 Password reset OTP fields
   resetOtpHash       String?
