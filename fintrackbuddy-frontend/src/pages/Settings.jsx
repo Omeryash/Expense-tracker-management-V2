@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
 import { Card } from "../components/ui/Card";
@@ -19,6 +19,8 @@ import {
   Lock,
   Eye,
   EyeOff,
+  ShieldCheck,
+  ShieldOff,
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -30,27 +32,39 @@ export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const { currency, setCurrency, currencies } = useCurrency();
   const { expenses } = useExpenses();
-  const { changePassword } = useContext(AuthContext);
+  const { changePassword, user, enable2FA, disable2FA } =
+    useContext(AuthContext);
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState({
     notifications: true,
     emailAlerts: true,
     pushNotifications: false,
-    twoFactor: false,
     language: "English",
   });
+
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(
+    user?.twoFactorEnabled || false,
+  );
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFALoading, setTwoFALoading] = useState(false);
+
   const [messageData, setMessageData] = useState({
     type: "success",
     title: "",
     message: "",
   });
+
+  // ✅ Sync user 2FA state when user changes
+  useEffect(() => {
+    setTwoFactorEnabled(user?.twoFactorEnabled || false);
+  }, [user?.twoFactorEnabled]);
 
   // Change password form state
   const [passwordData, setPasswordData] = useState({
@@ -67,6 +81,51 @@ export default function Settings() {
   const showMessage = (type, title, message) => {
     setMessageData({ type, title, message });
     setShowMessageModal(true);
+  };
+
+  // ============================================
+  // ✅ Handle 2FA Toggle Click
+  // ============================================
+  const handle2FAToggleClick = () => {
+    setShow2FAModal(true);
+  };
+
+  // ============================================
+  // ✅ Confirm 2FA Enable/Disable
+  // ============================================
+  const handleConfirm2FA = async () => {
+    setTwoFALoading(true);
+
+    try {
+      if (twoFactorEnabled) {
+        // ✅ Disable 2FA
+        await disable2FA();
+        setTwoFactorEnabled(false);
+        setShow2FAModal(false);
+        showMessage(
+          "success",
+          "2FA Disabled",
+          "Two-factor authentication has been turned off. You won't need OTP for login now.",
+        );
+      } else {
+        // ✅ Enable 2FA
+        await enable2FA();
+        setTwoFactorEnabled(true);
+        setShow2FAModal(false);
+        showMessage(
+          "success",
+          "2FA Enabled!",
+          "Two-factor authentication is now active. You'll need to enter an OTP every time you login.",
+        );
+      }
+    } catch (error) {
+      const msg =
+        error.response?.data?.message || "Failed to update 2FA settings";
+      setShow2FAModal(false);
+      showMessage("error", "Failed", msg);
+    } finally {
+      setTwoFALoading(false);
+    }
   };
 
   const handleChangePassword = async (e) => {
@@ -222,19 +281,23 @@ export default function Settings() {
     },
     {
       title: "Security",
-      icon: Shield,
-      description: "Two-factor authentication",
+      icon: twoFactorEnabled ? ShieldCheck : Shield,
+      description: twoFactorEnabled
+        ? "Two-factor authentication is ON"
+        : "Two-factor authentication is OFF",
       action: (
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
-            checked={settings.twoFactor}
-            onChange={() =>
-              setSettings({ ...settings, twoFactor: !settings.twoFactor })
-            }
+            checked={twoFactorEnabled}
+            onChange={handle2FAToggleClick}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          <div
+            className={`w-11 h-6 rounded-full peer-focus:outline-none peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${
+              twoFactorEnabled ? "bg-green-500" : "bg-muted"
+            }`}
+          ></div>
         </label>
       ),
     },
@@ -312,8 +375,20 @@ export default function Settings() {
             >
               <Card className="flex items-center justify-between p-6 hover:shadow-lg transition-all">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-muted">
-                    <section.icon className="w-5 h-5" />
+                  <div
+                    className={`p-3 rounded-xl ${
+                      section.title === "Security" && twoFactorEnabled
+                        ? "bg-green-500/10"
+                        : "bg-muted"
+                    }`}
+                  >
+                    <section.icon
+                      className={`w-5 h-5 ${
+                        section.title === "Security" && twoFactorEnabled
+                          ? "text-green-500"
+                          : ""
+                      }`}
+                    />
                   </div>
                   <div>
                     <h3 className="font-semibold">{section.title}</h3>
@@ -348,7 +423,77 @@ export default function Settings() {
         </Card>
       </div>
 
-      {/* ✅ Change Password Modal */}
+      {/* ✅ 2FA Confirmation Modal */}
+      <AnimatePresence>
+        {show2FAModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !twoFALoading && setShow2FAModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.15, stiffness: 200 }}
+                    className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
+                      twoFactorEnabled ? "bg-red-500/10" : "bg-primary/10"
+                    }`}
+                  >
+                    {twoFactorEnabled ? (
+                      <ShieldOff className="w-10 h-10 text-red-500" />
+                    ) : (
+                      <ShieldCheck className="w-10 h-10 text-primary" />
+                    )}
+                  </motion.div>
+
+                  <h3 className="text-2xl font-bold mb-2">
+                    {twoFactorEnabled ? "Disable 2FA?" : "Enable 2FA?"}
+                  </h3>
+
+                  <p className="text-muted-foreground text-sm mb-6">
+                    {twoFactorEnabled
+                      ? "Your account will be less secure. You won't need OTP for login. You can re-enable it anytime."
+                      : "You'll need to enter an OTP from your device every time you login. This adds an extra layer of security."}
+                  </p>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShow2FAModal(false)}
+                      disabled={twoFALoading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className={`flex-1 ${
+                        twoFactorEnabled ? "bg-red-500 hover:bg-red-600" : ""
+                      }`}
+                      onClick={handleConfirm2FA}
+                      loading={twoFALoading}
+                    >
+                      {twoFactorEnabled ? "Yes, Disable" : "Yes, Enable"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Change Password Modal */}
       <AnimatePresence>
         {showPasswordModal && (
           <>
@@ -473,7 +618,6 @@ export default function Settings() {
                     required
                   />
 
-                  {/* Password Requirements */}
                   {passwordData.newPassword && (
                     <div className="p-3 bg-muted/50 rounded-xl text-xs space-y-1">
                       <p className="font-medium text-muted-foreground mb-2">
@@ -551,7 +695,7 @@ export default function Settings() {
         )}
       </AnimatePresence>
 
-      {/* ✅ Export Success Modal */}
+      {/* Export Success Modal */}
       <AnimatePresence>
         {showExportModal && (
           <>
@@ -618,7 +762,7 @@ export default function Settings() {
         )}
       </AnimatePresence>
 
-      {/* ✅ Message Modal (Success/Error) */}
+      {/* Message Modal */}
       <AnimatePresence>
         {showMessageModal && (
           <>
@@ -627,9 +771,9 @@ export default function Settings() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMessageModal(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
             />
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}

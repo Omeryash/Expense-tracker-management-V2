@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Update Profile
+  // ✅ Update Profile
   // ============================================
   const updateProfile = async (data) => {
     const response = await api.put("/auth/profile", data);
@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Upload Avatar
+  // ✅ Upload Avatar
   // ============================================
   const uploadAvatar = async (file) => {
     const formData = new FormData();
@@ -64,12 +64,63 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Remove Avatar
+  // ✅ Remove Avatar
   // ============================================
   const removeAvatar = async () => {
     const response = await api.delete("/auth/profile/avatar");
     setUser(response.data.user);
     localStorage.setItem("user", JSON.stringify(response.data.user));
+    return response.data;
+  };
+
+  // ============================================
+  // ✅ NEW: Verify Login OTP (2FA)
+  // ============================================
+  const verifyLoginOtp = async (userId, otp) => {
+    const response = await api.post("/auth/verify-login-otp", {
+      userId,
+      otp,
+    });
+
+    // Login complete — token + user save karo
+    const { token: newToken, user: userData } = response.data;
+    setToken(newToken);
+    setUser(userData);
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    return response.data;
+  };
+
+  // ============================================
+  // ✅ NEW: Enable 2FA
+  // ============================================
+  const enable2FA = async () => {
+    const response = await api.post("/auth/2fa/enable");
+
+    // Update user state
+    if (user) {
+      const updatedUser = { ...user, twoFactorEnabled: true };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    }
+
+    return response.data;
+  };
+
+  // ============================================
+  // ✅ NEW: Disable 2FA
+  // ============================================
+  const disable2FA = async () => {
+    const response = await api.post("/auth/2fa/disable");
+
+    // Update user state
+    if (user) {
+      const updatedUser = { ...user, twoFactorEnabled: false };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    }
+
     return response.data;
   };
 
@@ -84,6 +135,9 @@ export const AuthProvider = ({ children }) => {
         updateProfile,
         uploadAvatar,
         removeAvatar,
+        verifyLoginOtp,
+        enable2FA,
+        disable2FA,
       }}
     >
       {children}

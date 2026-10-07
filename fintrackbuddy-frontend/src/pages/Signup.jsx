@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, Shield } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Logo } from "../components/common/Logo";
@@ -13,6 +13,8 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [enable2FA, setEnable2FA] = useState(false);
+  const [savedUserId, setSavedUserId] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -26,12 +28,15 @@ export default function Signup() {
     setError("");
 
     try {
-      await api.post("/auth/register", {
+      const response = await api.post("/auth/register", {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         password: formData.password,
       });
+
+      // ✅ Save user ID for potential 2FA enable
+      setSavedUserId(response.data.user.id);
 
       setShowSuccessModal(true);
     } catch (err) {
@@ -41,14 +46,40 @@ export default function Signup() {
     }
   };
 
-  const handleGoToLogin = () => {
+  const handleGoToLogin = async () => {
+    // ✅ If 2FA checkbox is checked, enable it
+    if (enable2FA && savedUserId) {
+      try {
+        // Login first to get token, then enable 2FA
+        const loginRes = await api.post("/auth/login", {
+          email: formData.email,
+          password: formData.password,
+        });
+
+        // Save token temporarily
+        const tempToken = loginRes.data.token;
+
+        // Enable 2FA
+        await api.post(
+          "/auth/2fa/enable",
+          {},
+          {
+            headers: { Authorization: `Bearer ${tempToken}` },
+          },
+        );
+      } catch (err) {
+        console.error("Failed to enable 2FA:", err);
+        // Silent fail — user can enable later in settings
+      }
+    }
+
     setShowSuccessModal(false);
     navigate("/login");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* ✅ NEW: Attractive Animated Background */}
+      {/* Animated Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950" />
 
       {/* Animated orbs */}
@@ -113,7 +144,7 @@ export default function Signup() {
         transition={{ duration: 0.5 }}
         className="relative w-full max-w-md px-6 z-10"
       >
-        {/* ✅ NEW: Logo */}
+        {/* Logo */}
         <div className="text-center mb-8 flex justify-center">
           <Logo size="lg" showText={true} />
         </div>
@@ -243,7 +274,6 @@ export default function Signup() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={handleGoToLogin}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
             />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -273,12 +303,35 @@ export default function Signup() {
                     </h3>
 
                     <p className="text-gray-400 text-sm mb-6">
-                      Your account has been created successfully. You can now
-                      login with your credentials.
+                      Your account has been created successfully.
                     </p>
 
+                    {/* ✅ 2FA Enable Option */}
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl mb-5">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enable2FA}
+                          onChange={(e) => setEnable2FA(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-border accent-primary"
+                        />
+                        <div className="text-left flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Shield className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-semibold text-foreground">
+                              Enable Two-Factor Authentication
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Add an extra layer of security to your account.
+                            You'll need to enter an OTP every time you login.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
                     <Button className="w-full" onClick={handleGoToLogin}>
-                      Go to Login
+                      Continue to Login
                     </Button>
                   </div>
                 </div>

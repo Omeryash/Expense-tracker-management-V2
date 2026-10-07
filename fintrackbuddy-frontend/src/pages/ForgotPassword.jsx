@@ -8,11 +8,15 @@ const ForgotPassword = () => {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [resetToken, setResetToken] = useState(""); // ✅ NEW
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
+  // ============================================
+  // ✅ Step 1: Send OTP
+  // ============================================
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError("");
@@ -20,7 +24,7 @@ const ForgotPassword = () => {
     setLoading(true);
     try {
       await api.post("/auth/forgot-password", { phone });
-      setInfo(`OTP sent to ${phone}`);
+      setInfo(`OTP sent to ${phone}. Check backend terminal.`);
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to send OTP");
@@ -29,12 +33,16 @@ const ForgotPassword = () => {
     }
   };
 
+  // ============================================
+  // ✅ Step 2: Verify OTP → Save resetToken
+  // ============================================
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await api.post("/auth/verify-otp", { phone, otp });
+      const response = await api.post("/auth/verify-otp", { phone, otp });
+      setResetToken(response.data.resetToken); // ✅ resetToken save
       setStep(3);
     } catch (err) {
       setError(err.response?.data?.message || "Invalid OTP");
@@ -43,12 +51,18 @@ const ForgotPassword = () => {
     }
   };
 
+  // ============================================
+  // ✅ Step 3: Reset Password (with resetToken)
+  // ============================================
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await api.post("/auth/reset-password", { phone, otp, newPassword });
+      await api.post("/auth/reset-password", {
+        resetToken, // ✅ resetToken bhejo
+        newPassword,
+      });
       alert("Password reset successful! Please login.");
       navigate("/login");
     } catch (err) {
@@ -60,7 +74,6 @@ const ForgotPassword = () => {
 
   return (
     <>
-      {/* 👇 Yeh fix hai — input text aur placeholder dono visible */}
       <style>{`
         .fp-input {
           width: 100%;
@@ -92,7 +105,7 @@ const ForgotPassword = () => {
           {error && <p style={styles.error}>{error}</p>}
           {info && <p style={styles.info}>{info}</p>}
 
-          {/* STEP 1 */}
+          {/* STEP 1: Phone */}
           {step === 1 && (
             <form onSubmit={handleSendOtp}>
               <input
@@ -113,11 +126,21 @@ const ForgotPassword = () => {
             </form>
           )}
 
-          {/* STEP 2 */}
+          {/* STEP 2: OTP */}
           {step === 2 && (
             <form onSubmit={handleVerifyOtp}>
               <p style={styles.text}>
                 OTP sent to <strong>{phone}</strong>
+              </p>
+              <p
+                style={{
+                  ...styles.text,
+                  fontSize: "0.75rem",
+                  color: "#2563eb",
+                  marginTop: "-0.5rem",
+                }}
+              >
+                📟 Check backend terminal for OTP
               </p>
               <input
                 type="text"
@@ -153,9 +176,18 @@ const ForgotPassword = () => {
             </form>
           )}
 
-          {/* STEP 3 */}
+          {/* STEP 3: New Password */}
           {step === 3 && (
             <form onSubmit={handleResetPassword}>
+              <p
+                style={{
+                  ...styles.text,
+                  color: "#16a34a",
+                  fontWeight: "600",
+                }}
+              >
+                ✅ OTP verified! Enter new password
+              </p>
               <input
                 type="password"
                 placeholder="New password (min 6 chars)"
