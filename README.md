@@ -1013,5 +1013,6 @@ docker compose up -d
         ↓
 docker exec -it fintrackbuddy-backend npx prisma migrate deploy
 ```
-
+sample id-amit@example.com
+sample password:-amit$321
 
