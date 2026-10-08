@@ -17,7 +17,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ✅ NEW: Two-Factor Authentication
+  // ✅ Two-Factor Authentication
   twoFactorEnabled     Boolean   @default(false)
   twoFactorOtpHash     String?
   twoFactorOtpExpiry   DateTime?
@@ -34,14 +34,35 @@ model User {
   resetOtpAttempts   Int       @default(0)
   resetOtpLastSentAt DateTime?
 
-  expenses   Expense[]
-  incomes    Income[]
-  categories Category[]
-  accounts   Account[]
+  // ✅ NEW: Notification preference
+  notificationsEnabled Boolean @default(true)
+
+  // Relations
+  expenses      Expense[]
+  incomes       Income[]
+  categories    Category[]
+  accounts      Account[]
+  notifications Notification[]   // ✅ NEW
 
   @@map("users")
 }
 
+// ============== NOTIFICATION ==============
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  type      String   @default("info") // "info" | "success" | "warning" | "error"
+  icon      String   @default("🔔")
+  isRead    Boolean  @default(false)
+  link      String? // Optional: navigate to page on click
+  createdAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
 // ============== CATEGORY ==============
 model Category {
   id        Int      @id @default(autoincrement())

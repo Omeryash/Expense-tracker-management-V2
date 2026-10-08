@@ -11,6 +11,7 @@ import { CurrencyProvider } from "./context/CurrencyContext";
 import { CategoryProvider } from "./context/CategoryContext";
 import { AccountProvider } from "./context/AccountContext";
 import { ExpenseProvider } from "./context/ExpenseContext";
+import { NotificationProvider } from "./context/NotificationContext"; // ✅ NEW
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -126,13 +127,18 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <CurrencyProvider>
-          <CategoryProvider>
-            <AccountProvider>
-              <ExpenseProvider>
-                <AppRoutes />
-              </ExpenseProvider>
-            </AccountProvider>
-          </CategoryProvider>
+          <NotificationProvider>
+            {" "}
+            {/* ✅ NEW */}
+            <CategoryProvider>
+              <AccountProvider>
+                <ExpenseProvider>
+                  <AppRoutes />
+                </ExpenseProvider>
+              </AccountProvider>
+            </CategoryProvider>
+          </NotificationProvider>{" "}
+          {/* ✅ NEW */}
         </CurrencyProvider>
       </AuthProvider>
     </ThemeProvider>

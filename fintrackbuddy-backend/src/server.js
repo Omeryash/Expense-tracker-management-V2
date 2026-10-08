@@ -9,6 +9,7 @@ const incomeRoutes = require("./routes/incomeRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const accountRoutes = require("./routes/accountRoutes");
+const notificationRoutes = require("./routes/notificationRoutes"); // ✅ NEW
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,7 +23,7 @@ app.use(
 
 app.use(express.json());
 
-// ✅ NEW: Serve uploaded files statically
+// ✅ Serve uploaded files statically
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.get("/", (req, res) => {
@@ -35,6 +36,7 @@ app.use("/api/incomes", incomeRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/accounts", accountRoutes);
+app.use("/api/notifications", notificationRoutes); // ✅ NEW
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

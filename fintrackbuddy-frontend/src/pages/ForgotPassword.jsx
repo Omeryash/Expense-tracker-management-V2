@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2 } from "lucide-react";
 import api from "../services/api";
 
 const ForgotPassword = () => {
@@ -8,11 +10,14 @@ const ForgotPassword = () => {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [resetToken, setResetToken] = useState(""); // ✅ NEW
+  const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  // ✅ NEW: Success Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // ============================================
   // ✅ Step 1: Send OTP
@@ -42,7 +47,7 @@ const ForgotPassword = () => {
     setLoading(true);
     try {
       const response = await api.post("/auth/verify-otp", { phone, otp });
-      setResetToken(response.data.resetToken); // ✅ resetToken save
+      setResetToken(response.data.resetToken);
       setStep(3);
     } catch (err) {
       setError(err.response?.data?.message || "Invalid OTP");
@@ -52,7 +57,7 @@ const ForgotPassword = () => {
   };
 
   // ============================================
-  // ✅ Step 3: Reset Password (with resetToken)
+  // ✅ Step 3: Reset Password
   // ============================================
   const handleResetPassword = async (e) => {
     e.preventDefault();
@@ -60,16 +65,22 @@ const ForgotPassword = () => {
     setLoading(true);
     try {
       await api.post("/auth/reset-password", {
-        resetToken, // ✅ resetToken bhejo
+        resetToken,
         newPassword,
       });
-      alert("Password reset successful! Please login.");
-      navigate("/login");
+      // ✅ Alert ki jagah Success Modal dikhao
+      setShowSuccessModal(true);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Go to Login
+  const handleGoToLogin = () => {
+    setShowSuccessModal(false);
+    navigate("/login");
   };
 
   return (
@@ -215,6 +226,50 @@ const ForgotPassword = () => {
           </p>
         </div>
       </div>
+
+      {/* ✅ Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleGoToLogin}
+              style={styles.modalBackdrop}
+            />
+            <div style={styles.modalWrapper}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                style={styles.modalBox}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.15, stiffness: 200 }}
+                  style={styles.successIcon}
+                >
+                  <CheckCircle2 size={40} color="#22c55e" />
+                </motion.div>
+
+                <h3 style={styles.modalTitle}>Password Reset!</h3>
+
+                <p style={styles.modalText}>
+                  Your password has been reset successfully. You can now login
+                  with your new password.
+                </p>
+
+                <button onClick={handleGoToLogin} style={styles.modalButton}>
+                  Go to Login
+                </button>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 };
@@ -295,6 +350,66 @@ const styles = {
   link: {
     color: "#2563eb",
     textDecoration: "none",
+  },
+
+  // ✅ Modal Styles
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.6)",
+    backdropFilter: "blur(4px)",
+    zIndex: 50,
+  },
+  modalWrapper: {
+    position: "fixed",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "1rem",
+    zIndex: 51,
+  },
+  modalBox: {
+    background: "#fff",
+    borderRadius: "16px",
+    padding: "2rem",
+    maxWidth: "380px",
+    width: "100%",
+    textAlign: "center",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+  },
+  successIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "80px",
+    height: "80px",
+    borderRadius: "50%",
+    background: "#dcfce7",
+    marginBottom: "1.25rem",
+  },
+  modalTitle: {
+    fontSize: "1.5rem",
+    fontWeight: "700",
+    marginBottom: "0.5rem",
+    color: "#111827",
+  },
+  modalText: {
+    fontSize: "0.875rem",
+    color: "#6b7280",
+    marginBottom: "1.5rem",
+    lineHeight: "1.5",
+  },
+  modalButton: {
+    width: "100%",
+    padding: "0.75rem",
+    background: "#2563eb",
+    color: "#fff",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    fontWeight: "600",
+    cursor: "pointer",
   },
 };
 

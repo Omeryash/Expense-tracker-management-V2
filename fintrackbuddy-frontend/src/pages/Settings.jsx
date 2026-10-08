@@ -26,6 +26,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useExpenses } from "../context/ExpenseContext";
 import { AuthContext } from "../context/AuthContext";
+import api from "../services/api"; // ✅ NEW
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Settings() {
@@ -47,6 +48,12 @@ export default function Settings() {
     user?.twoFactorEnabled || false,
   );
 
+  // ✅ NEW: Notifications enabled state
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    user?.notificationsEnabled ?? true,
+  );
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -66,6 +73,11 @@ export default function Settings() {
     setTwoFactorEnabled(user?.twoFactorEnabled || false);
   }, [user?.twoFactorEnabled]);
 
+  // ✅ Sync notifications state when user changes
+  useEffect(() => {
+    setNotificationsEnabled(user?.notificationsEnabled ?? true);
+  }, [user?.notificationsEnabled]);
+
   // Change password form state
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -84,6 +96,43 @@ export default function Settings() {
   };
 
   // ============================================
+  // ✅ NEW: Handle Notifications Toggle
+  // ============================================
+  const handleNotificationsToggle = async () => {
+    const newValue = !notificationsEnabled;
+    setNotificationsLoading(true);
+
+    try {
+      const response = await api.put("/auth/notifications-toggle", {
+        notificationsEnabled: newValue,
+      });
+
+      setNotificationsEnabled(newValue);
+
+      // Update user in localStorage
+      const updatedUser = {
+        ...user,
+        notificationsEnabled: newValue,
+      };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+
+      showMessage(
+        "success",
+        newValue ? "Notifications ON" : "Notifications OFF",
+        newValue
+          ? "You will receive notifications from now."
+          : "You won't receive any new notifications.",
+      );
+    } catch (error) {
+      const msg =
+        error.response?.data?.message || "Failed to update notifications";
+      showMessage("error", "Failed", msg);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  // ============================================
   // ✅ Handle 2FA Toggle Click
   // ============================================
   const handle2FAToggleClick = () => {
@@ -98,7 +147,6 @@ export default function Settings() {
 
     try {
       if (twoFactorEnabled) {
-        // ✅ Disable 2FA
         await disable2FA();
         setTwoFactorEnabled(false);
         setShow2FAModal(false);
@@ -108,7 +156,6 @@ export default function Settings() {
           "Two-factor authentication has been turned off. You won't need OTP for login now.",
         );
       } else {
-        // ✅ Enable 2FA
         await enable2FA();
         setTwoFactorEnabled(true);
         setShow2FAModal(false);
@@ -243,21 +290,23 @@ export default function Settings() {
     {
       title: "Notifications",
       icon: Bell,
-      description: "Manage your notification preferences",
+      description: notificationsEnabled
+        ? "You will receive notifications"
+        : "Notifications are turned off",
       action: (
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
-            checked={settings.notifications}
-            onChange={() =>
-              setSettings({
-                ...settings,
-                notifications: !settings.notifications,
-              })
-            }
+            checked={notificationsEnabled}
+            onChange={handleNotificationsToggle}
+            disabled={notificationsLoading}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          <div
+            className={`w-11 h-6 rounded-full peer-focus:outline-none peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${
+              notificationsLoading ? "opacity-50" : ""
+            } ${notificationsEnabled ? "bg-primary" : "bg-muted"}`}
+          ></div>
         </label>
       ),
     },
@@ -379,14 +428,20 @@ export default function Settings() {
                     className={`p-3 rounded-xl ${
                       section.title === "Security" && twoFactorEnabled
                         ? "bg-green-500/10"
-                        : "bg-muted"
+                        : section.title === "Notifications" &&
+                            notificationsEnabled
+                          ? "bg-primary/10"
+                          : "bg-muted"
                     }`}
                   >
                     <section.icon
                       className={`w-5 h-5 ${
                         section.title === "Security" && twoFactorEnabled
                           ? "text-green-500"
-                          : ""
+                          : section.title === "Notifications" &&
+                              notificationsEnabled
+                            ? "text-primary"
+                            : ""
                       }`}
                     />
                   </div>

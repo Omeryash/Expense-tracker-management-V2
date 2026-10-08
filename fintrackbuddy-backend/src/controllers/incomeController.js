@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { createNotification } = require("./notificationController"); // ✅ NEW
 
 const getIncomes = async (req, res) => {
   try {
@@ -31,8 +32,19 @@ const createIncome = async (req, res) => {
       },
     });
 
+    // ✅ Auto notification: Income added
+    await createNotification(
+      req.userId,
+      "Income Added 💰",
+      `${source} - ₹${parseFloat(amount).toLocaleString()}`,
+      "success",
+      icon || "💰",
+      "/transactions",
+    );
+
     res.status(201).json(income);
   } catch (error) {
+    console.error("Create income error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -61,6 +73,16 @@ const updateIncome = async (req, res) => {
       },
     });
 
+    // ✅ Auto notification: Income updated
+    await createNotification(
+      req.userId,
+      "Income Updated ✏️",
+      `${source} - ₹${parseFloat(amount).toLocaleString()}`,
+      "info",
+      "✏️",
+      "/transactions",
+    );
+
     res.json(income);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -80,6 +102,16 @@ const deleteIncome = async (req, res) => {
     }
 
     await prisma.income.delete({ where: { id: parseInt(id) } });
+
+    // ✅ Auto notification: Income deleted
+    await createNotification(
+      req.userId,
+      "Income Deleted 🗑️",
+      `${existing.source} (₹${existing.amount.toLocaleString()}) removed`,
+      "warning",
+      "🗑️",
+      "/transactions",
+    );
 
     res.json({ message: "Income deleted successfully" });
   } catch (error) {

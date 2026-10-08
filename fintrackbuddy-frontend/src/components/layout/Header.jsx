@@ -13,45 +13,26 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { AuthContext } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext"; // ✅ NEW
 
 export const Header = ({ onMenuClick, sidebarOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useContext(AuthContext);
+
+  // ✅ Real notifications from context
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotifications();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const notificationsRef = useRef(null);
   const userMenuRef = useRef(null);
-
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "New expense added",
-      message: "Grocery Shopping - $245",
-      time: "2 min ago",
-      read: false,
-      icon: "🛒",
-    },
-    {
-      id: 2,
-      title: "Income received",
-      message: "Salary Deposit - $5,000",
-      time: "1 hour ago",
-      read: false,
-      icon: "💰",
-    },
-    {
-      id: 3,
-      title: "Budget alert",
-      message: "Food budget 80% used",
-      time: "3 hours ago",
-      read: false,
-      icon: "⚠️",
-    },
-  ]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -69,18 +50,23 @@ export const Header = ({ onMenuClick, sidebarOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const markAsRead = (id) => {
-    setNotifications(
-      notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
-  };
+  // ============================================
+  // ✅ Time ago helper
+  // ============================================
+  const getTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
-  };
-
-  const deleteNotification = (id) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
   };
 
   const handleLogout = () => {
@@ -104,7 +90,7 @@ export const Header = ({ onMenuClick, sidebarOpen }) => {
       <div className="flex items-center justify-between h-full px-4 sm:px-6 gap-3">
         {/* Left Side: Hamburger + Search */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          {/* ✅ Hamburger - Sirf tab dikhe jab sidebar CLOSED ho */}
+          {/* Hamburger - Sirf tab dikhe jab sidebar CLOSED ho */}
           <AnimatePresence mode="wait">
             {!sidebarOpen && (
               <motion.button
@@ -150,7 +136,7 @@ export const Header = ({ onMenuClick, sidebarOpen }) => {
                   animate={{ scale: 1 }}
                   className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center"
                 >
-                  {unreadCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </motion.span>
               )}
             </button>
@@ -194,33 +180,41 @@ export const Header = ({ onMenuClick, sidebarOpen }) => {
                         <div
                           key={notification.id}
                           className={`flex gap-3 p-4 border-b border-border last:border-0 hover:bg-accent/50 transition group cursor-pointer ${
-                            !notification.read ? "bg-primary/5" : ""
+                            !notification.isRead ? "bg-primary/5" : ""
                           }`}
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={() => {
+                            if (!notification.isRead) {
+                              markAsRead(notification.id);
+                            }
+                            if (notification.link) {
+                              navigate(notification.link);
+                              setNotificationsOpen(false);
+                            }
+                          }}
                         >
                           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-lg flex-shrink-0">
-                            {notification.icon}
+                            {notification.icon || "🔔"}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
                               <p
                                 className={`text-sm ${
-                                  !notification.read
+                                  !notification.isRead
                                     ? "font-semibold"
                                     : "font-medium"
                                 }`}
                               >
                                 {notification.title}
                               </p>
-                              {!notification.read && (
+                              {!notification.isRead && (
                                 <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1.5" />
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
+                            <p className="text-xs text-muted-foreground line-clamp-2">
                               {notification.message}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {notification.time}
+                              {getTimeAgo(notification.createdAt)}
                             </p>
                           </div>
                           <button
