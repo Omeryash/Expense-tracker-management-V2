@@ -1,4 +1,5 @@
 const prisma = require("../utils/prisma");
+const { createNotification } = require("./notificationController"); // ✅ NEW
 
 const getExpenses = async (req, res) => {
   try {
@@ -32,6 +33,16 @@ const createExpense = async (req, res) => {
       },
     });
 
+    // ✅ Auto notification: Expense added
+    await createNotification(
+      req.userId,
+      "Expense Added 💸",
+      `${title} - ₹${parseFloat(amount).toLocaleString()}`,
+      "info",
+      icon || "💸",
+      "/expenses",
+    );
+
     res.status(201).json(expense);
   } catch (error) {
     console.error("Create expense error:", error);
@@ -64,6 +75,16 @@ const updateExpense = async (req, res) => {
       },
     });
 
+    // ✅ Auto notification: Expense updated
+    await createNotification(
+      req.userId,
+      "Expense Updated ✏️",
+      `${title} - ₹${parseFloat(amount).toLocaleString()}`,
+      "info",
+      "✏️",
+      "/expenses",
+    );
+
     res.json(expense);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -84,6 +105,16 @@ const deleteExpense = async (req, res) => {
 
     await prisma.expense.delete({ where: { id: parseInt(id) } });
 
+    // ✅ Auto notification: Expense deleted
+    await createNotification(
+      req.userId,
+      "Expense Deleted 🗑️",
+      `${existing.title} (₹${existing.amount.toLocaleString()}) removed`,
+      "warning",
+      "🗑️",
+      "/expenses",
+    );
+
     res.json({ message: "Expense deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -91,4 +122,3 @@ const deleteExpense = async (req, res) => {
 };
 
 module.exports = { getExpenses, createExpense, updateExpense, deleteExpense };
-

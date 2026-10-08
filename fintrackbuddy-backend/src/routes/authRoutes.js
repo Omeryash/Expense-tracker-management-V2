@@ -15,6 +15,7 @@ const {
   enable2FA,
   disable2FA,
   get2FAStatus,
+  toggleNotifications, // ✅ NEW
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -42,10 +43,13 @@ router.post(
 );
 router.delete("/profile/avatar", authMiddleware, removeAvatar);
 
-// ✅ NEW: Two-Factor Authentication (2FA)
-router.post("/verify-login-otp", verifyLoginOtp); // Login ke waqt OTP verify (public)
-router.post("/2fa/enable", authMiddleware, enable2FA); // 2FA enable (protected)
-router.post("/2fa/disable", authMiddleware, disable2FA); // 2FA disable (protected)
-router.get("/2fa/status", authMiddleware, get2FAStatus); // 2FA status (protected)
+// ✅ Two-Factor Authentication (2FA)
+router.post("/verify-login-otp", verifyLoginOtp);
+router.post("/2fa/enable", authMiddleware, enable2FA);
+router.post("/2fa/disable", authMiddleware, disable2FA);
+router.get("/2fa/status", authMiddleware, get2FAStatus);
+
+// ✅ NEW: Notifications toggle
+router.put("/notifications-toggle", authMiddleware, toggleNotifications);
 
 module.exports = router;

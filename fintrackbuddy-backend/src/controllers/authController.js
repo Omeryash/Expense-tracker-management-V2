@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
+const { createNotification } = require("./notificationController"); // ✅ NEW
 
 // Register
 const register = async (req, res) => {
@@ -42,6 +43,16 @@ const register = async (req, res) => {
         password: hashedPassword,
       },
     });
+
+    // ✅ Auto notification: Welcome
+    await createNotification(
+      newUser.id,
+      "Welcome to FinTrackBuddy! 🎉",
+      "Your account has been created successfully. Start tracking your expenses!",
+      "success",
+      "🎉",
+      "/dashboard",
+    );
 
     res.status(201).json({
       message: "User registered successfully",
@@ -123,7 +134,8 @@ const login = async (req, res) => {
         location: user.location,
         bio: user.bio,
         avatar: user.avatar,
-        twoFactorEnabled: user.twoFactorEnabled, // ✅ ADD
+        twoFactorEnabled: user.twoFactorEnabled,
+        notificationsEnabled: user.notificationsEnabled,
       },
     });
   } catch (error) {
@@ -146,6 +158,7 @@ const getMe = async (req, res) => {
         bio: true,
         avatar: true,
         twoFactorEnabled: true,
+        notificationsEnabled: true,
         createdAt: true,
       },
     });
@@ -205,6 +218,15 @@ const changePassword = async (req, res) => {
       where: { id: req.userId },
       data: { password: hashedNewPassword },
     });
+
+    // ✅ Auto notification: Password changed
+    await createNotification(
+      req.userId,
+      "Password Changed 🔒",
+      "Your password has been updated successfully. If this wasn't you, contact support immediately.",
+      "warning",
+      "🔒",
+    );
 
     res.json({ message: "Password changed successfully" });
   } catch (error) {
@@ -387,6 +409,15 @@ const resetPassword = async (req, res) => {
       },
     });
 
+    // ✅ Auto notification: Password reset
+    await createNotification(
+      user.id,
+      "Password Reset 🔓",
+      "Your password has been reset successfully. If this wasn't you, contact support immediately.",
+      "warning",
+      "🔓",
+    );
+
     res.json({ message: "Password reset successfully" });
   } catch (error) {
     console.error("Reset password error:", error);
@@ -439,9 +470,19 @@ const updateProfile = async (req, res) => {
         bio: true,
         avatar: true,
         twoFactorEnabled: true,
+        notificationsEnabled: true,
         createdAt: true,
       },
     });
+
+    // ✅ Auto notification: Profile updated
+    await createNotification(
+      req.userId,
+      "Profile Updated 👤",
+      "Your profile information has been updated successfully.",
+      "info",
+      "👤",
+    );
 
     res.json({
       message: "Profile updated successfully",
@@ -476,8 +517,18 @@ const uploadAvatar = async (req, res) => {
         bio: true,
         avatar: true,
         twoFactorEnabled: true,
+        notificationsEnabled: true,
       },
     });
+
+    // ✅ Auto notification: Avatar uploaded
+    await createNotification(
+      req.userId,
+      "Profile Photo Updated 📸",
+      "Your profile photo has been changed successfully.",
+      "info",
+      "📸",
+    );
 
     res.json({
       message: "Avatar uploaded successfully",
@@ -506,8 +557,18 @@ const removeAvatar = async (req, res) => {
         bio: true,
         avatar: true,
         twoFactorEnabled: true,
+        notificationsEnabled: true,
       },
     });
+
+    // ✅ Auto notification: Avatar removed
+    await createNotification(
+      req.userId,
+      "Profile Photo Removed 🗑️",
+      "Your profile photo has been removed.",
+      "info",
+      "🗑️",
+    );
 
     res.json({
       message: "Avatar removed successfully",
@@ -595,7 +656,8 @@ const verifyLoginOtp = async (req, res) => {
         location: user.location,
         bio: user.bio,
         avatar: user.avatar,
-        twoFactorEnabled: user.twoFactorEnabled, // ✅ ADD
+        twoFactorEnabled: user.twoFactorEnabled,
+        notificationsEnabled: user.notificationsEnabled,
       },
     });
   } catch (error) {
@@ -619,6 +681,15 @@ const enable2FA = async (req, res) => {
         twoFactorEnabled: true,
       },
     });
+
+    // ✅ Auto notification: 2FA enabled
+    await createNotification(
+      req.userId,
+      "2FA Enabled 🛡️",
+      "Two-factor authentication is now active on your account. Your account is more secure!",
+      "success",
+      "🛡️",
+    );
 
     res.json({
       message: "2FA enabled successfully",
@@ -650,6 +721,15 @@ const disable2FA = async (req, res) => {
         twoFactorEnabled: true,
       },
     });
+
+    // ✅ Auto notification: 2FA disabled
+    await createNotification(
+      req.userId,
+      "2FA Disabled ⚠️",
+      "Two-factor authentication has been turned off. Your account is less secure now.",
+      "warning",
+      "⚠️",
+    );
 
     res.json({
       message: "2FA disabled successfully",
@@ -686,6 +766,42 @@ const get2FAStatus = async (req, res) => {
   }
 };
 
+// ============================================
+// ✅ TOGGLE NOTIFICATIONS
+// ============================================
+const toggleNotifications = async (req, res) => {
+  try {
+    const { notificationsEnabled } = req.body;
+
+    if (typeof notificationsEnabled !== "boolean") {
+      return res.status(400).json({
+        message: "notificationsEnabled must be a boolean",
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { notificationsEnabled },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        notificationsEnabled: true,
+      },
+    });
+
+    res.json({
+      message: notificationsEnabled
+        ? "Notifications enabled"
+        : "Notifications disabled",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Toggle notifications error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -701,4 +817,5 @@ module.exports = {
   enable2FA,
   disable2FA,
   get2FAStatus,
+  toggleNotifications,
 };
