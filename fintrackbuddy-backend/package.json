@@ -20,7 +20,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@ai-sdk/groq": "^4.0.59",
     "@prisma/client": "^6.19.3",
+    "ai": "^7.0.136",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.4",
@@ -31,6 +33,6 @@
     "prisma": "^6.12.0"
   },
   "devDependencies": {
-    "nodemon": "^1.14.10"
+    "nodemon": "^3.1.14"
   }
 }

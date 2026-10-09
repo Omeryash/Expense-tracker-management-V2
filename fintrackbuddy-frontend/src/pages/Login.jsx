@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   KeyRound,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -40,6 +41,37 @@ export default function Login() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  // ✅ NEW: OTP validity countdown (2 min = 120 sec)
+  const [otpValidity, setOtpValidity] = useState(0);
+  const [isOtpExpired, setIsOtpExpired] = useState(false);
+
+  // ✅ NEW: OTP validity timer
+  useEffect(() => {
+    if (!requires2FA || otpValidity <= 0) return;
+
+    const timer = setInterval(() => {
+      setOtpValidity((prev) => {
+        if (prev <= 1) {
+          setIsOtpExpired(true);
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [requires2FA, otpValidity]);
+
+  // ✅ NEW: Format time (120 → 02:00)
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
   // ============================================
   // ✅ Step 1: Login Submit
   // ============================================
@@ -61,6 +93,8 @@ export default function Login() {
         setUserEmail(formData.email);
         setOtp("");
         setOtpError("");
+        setOtpValidity(120); // ✅ 2 min OTP validity
+        setIsOtpExpired(false);
         setLoading(false);
         return;
       }
@@ -109,7 +143,7 @@ export default function Login() {
   // ✅ Step 3: Resend OTP
   // ============================================
   const handleResendOtp = async () => {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || otpValidity > 0) return;
 
     setResendLoading(true);
     setOtpError("");
@@ -123,8 +157,11 @@ export default function Login() {
       if (response.data.requires2FA) {
         setUserId(response.data.userId);
         setOtp("");
-        // Start 30-second cooldown
-        setResendCooldown(30);
+        setOtpValidity(120); // ✅ Naya OTP = 2 min validity
+        setIsOtpExpired(false);
+
+        // ✅ Resend cooldown 2 minutes
+        setResendCooldown(120);
         const timer = setInterval(() => {
           setResendCooldown((prev) => {
             if (prev <= 1) {
@@ -155,6 +192,8 @@ export default function Login() {
     setOtpError("");
     setFormData({ email: "", password: "" });
     setResendCooldown(0);
+    setOtpValidity(0);
+    setIsOtpExpired(false);
   };
 
   return (
@@ -379,6 +418,50 @@ export default function Login() {
               </div>
             </div>
 
+            {/* ✅ NEW: OTP Validity Timer */}
+            {otpValidity > 0 && (
+              <div
+                className={`p-3 rounded-xl mb-5 ${
+                  otpValidity <= 30
+                    ? "bg-red-500/10 border border-red-500/30"
+                    : "bg-green-500/10 border border-green-500/30"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock
+                      className={`w-4 h-4 ${
+                        otpValidity <= 30 ? "text-red-400" : "text-green-400"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-medium ${
+                        otpValidity <= 30 ? "text-red-300" : "text-green-300"
+                      }`}
+                    >
+                      OTP valid for:
+                    </span>
+                  </div>
+                  <span
+                    className={`text-lg font-bold font-mono ${
+                      otpValidity <= 30 ? "text-red-400" : "text-green-400"
+                    }`}
+                  >
+                    {formatTime(otpValidity)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ✅ OTP Expired Message */}
+            {isOtpExpired && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl mb-5">
+                <p className="text-xs text-red-300 text-center">
+                  ⚠️ OTP expired! Please request a new one.
+                </p>
+              </div>
+            )}
+
             {/* OTP form */}
             <form onSubmit={handleVerifyOtp} className="space-y-5">
               <div className="space-y-2">
@@ -395,7 +478,12 @@ export default function Login() {
                   }
                   maxLength={6}
                   autoFocus
-                  className="w-full text-center text-2xl tracking-[0.5em] font-bold px-4 py-4 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                  disabled={isOtpExpired}
+                  className={`w-full text-center text-2xl tracking-[0.5em] font-bold px-4 py-4 rounded-xl border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
+                    isOtpExpired
+                      ? "border-red-500/50 opacity-50 cursor-not-allowed"
+                      : "border-border"
+                  }`}
                 />
               </div>
 
@@ -408,7 +496,7 @@ export default function Login() {
               <Button
                 type="submit"
                 loading={otpLoading}
-                disabled={otp.length !== 6}
+                disabled={otp.length !== 6 || isOtpExpired}
                 className="w-full"
               >
                 Verify OTP
@@ -423,9 +511,11 @@ export default function Login() {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={resendLoading || resendCooldown > 0}
+                disabled={
+                  resendLoading || resendCooldown > 0 || otpValidity > 0
+                }
                 className={`inline-flex items-center gap-2 text-sm font-medium transition ${
-                  resendCooldown > 0
+                  resendLoading || resendCooldown > 0 || otpValidity > 0
                     ? "text-gray-500 cursor-not-allowed"
                     : "text-primary hover:text-primary/80"
                 }`}
@@ -435,9 +525,11 @@ export default function Login() {
                 />
                 {resendLoading
                   ? "Sending..."
-                  : resendCooldown > 0
-                    ? `Resend in ${resendCooldown}s`
-                    : "Resend OTP"}
+                  : otpValidity > 0
+                    ? `Wait ${formatTime(otpValidity)}`
+                    : resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : "Resend OTP"}
               </button>
             </div>
           </motion.div>
