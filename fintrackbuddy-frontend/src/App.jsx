@@ -10,8 +10,10 @@ import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
 import { CategoryProvider } from "./context/CategoryContext";
 import { AccountProvider } from "./context/AccountContext";
+import { ChatProvider } from "./context/ChatContext";
+import { AIChatbot } from "./components/common/AIChatbot";
 import { ExpenseProvider } from "./context/ExpenseContext";
-import { NotificationProvider } from "./context/NotificationContext"; // ✅ NEW
+import { NotificationProvider } from "./context/NotificationContext";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -29,6 +31,16 @@ function ProtectedRoute({ children }) {
   const { token } = useContext(AuthContext);
   if (!token) return <Navigate to="/login" replace />;
   return children;
+}
+
+// ✅ NEW: Chatbot sirf logged-in users ko dikhe
+function ChatbotWrapper() {
+  const { token } = useContext(AuthContext);
+
+  // Agar user logged in nahi hai, to kuch nahi dikhao
+  if (!token) return null;
+
+  return <AIChatbot />;
 }
 
 function AppRoutes() {
@@ -118,6 +130,9 @@ function AppRoutes() {
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
+
+      {/* ✅ Chatbot sirf logged-in users ko dikhe */}
+      <ChatbotWrapper />
     </Router>
   );
 }
@@ -128,17 +143,16 @@ function App() {
       <AuthProvider>
         <CurrencyProvider>
           <NotificationProvider>
-            {" "}
-            {/* ✅ NEW */}
-            <CategoryProvider>
-              <AccountProvider>
-                <ExpenseProvider>
-                  <AppRoutes />
-                </ExpenseProvider>
-              </AccountProvider>
-            </CategoryProvider>
-          </NotificationProvider>{" "}
-          {/* ✅ NEW */}
+            <ChatProvider>
+              <CategoryProvider>
+                <AccountProvider>
+                  <ExpenseProvider>
+                    <AppRoutes />
+                  </ExpenseProvider>
+                </AccountProvider>
+              </CategoryProvider>
+            </ChatProvider>
+          </NotificationProvider>
         </CurrencyProvider>
       </AuthProvider>
     </ThemeProvider>
