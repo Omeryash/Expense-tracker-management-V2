@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Verify Login OTP (2FA)
+  // ✅ Verify Login OTP (2FA)
   // ============================================
   const verifyLoginOtp = async (userId, otp) => {
     const response = await api.post("/auth/verify-login-otp", {
@@ -82,7 +82,6 @@ export const AuthProvider = ({ children }) => {
       otp,
     });
 
-    // Login complete — token + user save karo
     const { token: newToken, user: userData } = response.data;
     setToken(newToken);
     setUser(userData);
@@ -93,12 +92,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Enable 2FA
+  // ✅ Enable 2FA
   // ============================================
   const enable2FA = async () => {
     const response = await api.post("/auth/2fa/enable");
 
-    // Update user state
     if (user) {
       const updatedUser = { ...user, twoFactorEnabled: true };
       setUser(updatedUser);
@@ -109,14 +107,31 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Disable 2FA
+  // ✅ Disable 2FA
   // ============================================
   const disable2FA = async () => {
     const response = await api.post("/auth/2fa/disable");
 
-    // Update user state
     if (user) {
       const updatedUser = { ...user, twoFactorEnabled: false };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    }
+
+    return response.data;
+  };
+
+  // ============================================
+  // ✅ NEW: Toggle Email Alerts
+  // ============================================
+  const toggleEmailAlerts = async (emailAlertsEnabled) => {
+    const response = await api.put("/auth/toggle-email-alerts", {
+      emailAlertsEnabled,
+    });
+
+    // Update user state
+    if (user) {
+      const updatedUser = { ...user, emailAlertsEnabled };
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
     }
@@ -138,6 +153,7 @@ export const AuthProvider = ({ children }) => {
         verifyLoginOtp,
         enable2FA,
         disable2FA,
+        toggleEmailAlerts, // ✅ ADD
       }}
     >
       {children}

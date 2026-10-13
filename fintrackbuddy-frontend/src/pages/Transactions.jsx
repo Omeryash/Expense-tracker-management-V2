@@ -10,8 +10,12 @@ import {
   Trash2,
   ArrowUpDown,
   Calendar as CalendarIcon,
+  X,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useExpenses } from "../context/ExpenseContext";
 
 export default function Transactions() {
@@ -21,6 +25,27 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState("date");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // ✅ NEW: View Modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+
+  // ✅ NEW: Delete Modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState(null);
+
+  // ✅ NEW: Message Modal state
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageData, setMessageData] = useState({
+    type: "success",
+    title: "",
+    message: "",
+  });
+
+  const showMessage = (type, title, message) => {
+    setMessageData({ type, title, message });
+    setShowMessageModal(true);
+  };
 
   const getTotalIncome = () =>
     expenses
@@ -67,12 +92,36 @@ export default function Transactions() {
     setCurrentPage(1);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Delete this transaction?")) {
-      deleteExpense(id);
+  // ✅ NEW: View Details Click
+  const handleViewClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowDetailModal(true);
+  };
+
+  // ✅ NEW: Delete Click (open modal)
+  const handleDeleteClick = (transaction) => {
+    setTransactionToDelete(transaction);
+    setShowDeleteModal(true);
+  };
+
+  // ✅ NEW: Confirm Delete
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteExpense(transactionToDelete.id);
+
+      // Adjust page if last item on last page deleted
       if (paginatedTransactions.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       }
+
+      setShowDeleteModal(false);
+      setTransactionToDelete(null);
+
+      showMessage("success", "Deleted!", "Transaction removed successfully.");
+    } catch (error) {
+      setShowDeleteModal(false);
+      setTransactionToDelete(null);
+      showMessage("error", "Failed", "Could not delete transaction.");
     }
   };
 
@@ -83,26 +132,22 @@ export default function Transactions() {
       return;
     }
 
-    // CSV Headers
     const headers = ["Date", "Title", "Category", "Type", "Amount", "Status"];
 
-    // CSV Rows
     const rows = filteredTransactions.map((t) => [
       t.date,
-      `"${t.title}"`, // quotes in case title has comma
+      `"${t.title}"`,
       t.category,
       t.type,
       t.amount,
       t.status,
     ]);
 
-    // Combine headers + rows
     const csvContent = [
       headers.join(","),
       ...rows.map((row) => row.join(",")),
     ].join("\n");
 
-    // Create blob and trigger download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -148,7 +193,6 @@ export default function Transactions() {
               View and manage all your financial activities
             </p>
           </div>
-          {/* ✅ Export button with onClick handler */}
           <Button
             variant="outline"
             className="flex items-center gap-2"
@@ -308,12 +352,19 @@ export default function Transactions() {
                       {transaction.amount}
                     </p>
                     <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition">
-                      <button className="p-2 rounded-lg hover:bg-accent transition">
+                      {/* ✅ Eye icon → View details */}
+                      <button
+                        onClick={() => handleViewClick(transaction)}
+                        className="p-2 rounded-lg hover:bg-accent transition"
+                        title="View details"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
+                      {/* ✅ Trash icon → Custom modal */}
                       <button
-                        onClick={() => handleDelete(transaction.id)}
+                        onClick={() => handleDeleteClick(transaction)}
                         className="p-2 rounded-lg hover:bg-destructive/10 transition text-destructive"
+                        title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -395,6 +446,256 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* ✅ View Details Modal */}
+      <AnimatePresence>
+        {showDetailModal && selectedTransaction && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDetailModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+              >
+                {/* Header */}
+                <div
+                  className={`p-6 ${
+                    selectedTransaction.type === "income"
+                      ? "gradient-success"
+                      : "gradient-danger"
+                  } text-white relative`}
+                >
+                  <button
+                    onClick={() => setShowDetailModal(false)}
+                    className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/20 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">
+                      {selectedTransaction.icon}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">
+                        {selectedTransaction.title}
+                      </h3>
+                      <p className="text-white/80 text-sm">
+                        {selectedTransaction.category}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-muted/50 rounded-xl">
+                    <span className="text-sm text-muted-foreground">
+                      Amount
+                    </span>
+                    <span
+                      className={`text-xl font-bold ${
+                        selectedTransaction.type === "income"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {selectedTransaction.type === "income" ? "+" : "-"} ₹
+                      {selectedTransaction.amount.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-muted/50 rounded-xl">
+                    <span className="text-sm text-muted-foreground">Type</span>
+                    <span className="font-semibold capitalize">
+                      {selectedTransaction.type}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-muted/50 rounded-xl">
+                    <span className="text-sm text-muted-foreground">
+                      Category
+                    </span>
+                    <span className="font-semibold">
+                      {selectedTransaction.category}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-muted/50 rounded-xl">
+                    <span className="text-sm text-muted-foreground">Date</span>
+                    <span className="font-semibold">
+                      {new Date(selectedTransaction.date).toLocaleDateString(
+                        "en-IN",
+                        {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        },
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center p-3 bg-muted/50 rounded-xl">
+                    <span className="text-sm text-muted-foreground">
+                      Status
+                    </span>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        selectedTransaction.status === "completed"
+                          ? "bg-green-500/10 text-green-600"
+                          : "bg-yellow-500/10 text-yellow-600"
+                      }`}
+                    >
+                      {selectedTransaction.status}
+                    </span>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={() => setShowDetailModal(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && transactionToDelete && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.15, stiffness: 200 }}
+                    className="inline-flex items-center justify-center w-20 h-20 bg-red-500/10 rounded-full mb-5"
+                  >
+                    <AlertTriangle className="w-10 h-10 text-red-500" />
+                  </motion.div>
+
+                  <h3 className="text-2xl font-bold mb-2">
+                    Delete Transaction?
+                  </h3>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Are you sure you want to delete{" "}
+                    <strong className="text-foreground">
+                      "{transactionToDelete.title}"
+                    </strong>
+                    ? This action cannot be undone.
+                  </p>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowDeleteModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="flex-1"
+                      onClick={handleConfirmDelete}
+                    >
+                      Yes, Delete
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Message Modal */}
+      <AnimatePresence>
+        {showMessageModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMessageModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="relative w-full max-w-sm"
+              >
+                <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+                  <div className="p-8 text-center">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        type: "spring",
+                        delay: 0.15,
+                        stiffness: 200,
+                      }}
+                      className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
+                        messageData.type === "success"
+                          ? "bg-green-500/10"
+                          : "bg-red-500/10"
+                      }`}
+                    >
+                      {messageData.type === "success" ? (
+                        <CheckCircle2 className="w-10 h-10 text-green-500" />
+                      ) : (
+                        <XCircle className="w-10 h-10 text-red-500" />
+                      )}
+                    </motion.div>
+
+                    <h3 className="text-2xl font-bold mb-2">
+                      {messageData.title}
+                    </h3>
+                    <p className="text-muted-foreground text-sm mb-6">
+                      {messageData.message}
+                    </p>
+
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowMessageModal(false)}
+                    >
+                      OK
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
