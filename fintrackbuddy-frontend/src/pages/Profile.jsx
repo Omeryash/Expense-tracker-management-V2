@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthContext } from "../context/AuthContext";
@@ -38,6 +38,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false); // ✅ NEW
   const [messageData, setMessageData] = useState({
     type: "success",
     title: "",
@@ -116,18 +117,24 @@ export default function Profile() {
       );
     } finally {
       setUploadingAvatar(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   // ============================================
-  // ✅ Handle Avatar Remove
+  // ✅ Handle Avatar Remove Click (open modal)
   // ============================================
-  const handleRemoveAvatar = async () => {
-    if (!window.confirm("Remove your profile photo?")) return;
+  const handleRemoveAvatarClick = () => {
+    setShowDeleteModal(true);
+  };
 
+  // ============================================
+  // ✅ Confirm Avatar Remove
+  // ============================================
+  const handleConfirmRemoveAvatar = async () => {
     setUploadingAvatar(true);
+    setShowDeleteModal(false);
+
     try {
       await removeAvatar();
       showMessage(
@@ -170,12 +177,38 @@ export default function Profile() {
   };
 
   // ============================================
-  // ✅ Member Since
+  // ✅ SAFE: Member Since (with fallback)
   // ============================================
   const getMemberSince = () => {
-    const date = user?.createdAt ? new Date(user.createdAt) : new Date();
+    // ✅ Check if createdAt exists
+    if (!user?.createdAt) return "Recently";
+
+    const date = new Date(user.createdAt);
+
+    // ✅ Check if valid date
+    if (isNaN(date.getTime())) return "Recently";
+
     return date.toLocaleString("en-US", {
       month: "short",
+      year: "numeric",
+    });
+  };
+
+  // ============================================
+  // ✅ SAFE: Joined Date (with fallback)
+  // ============================================
+  const getJoinedDate = () => {
+    // ✅ Check if createdAt exists
+    if (!user?.createdAt) return "Recently";
+
+    const date = new Date(user.createdAt);
+
+    // ✅ Check if valid date
+    if (isNaN(date.getTime())) return "Recently";
+
+    return date.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "long",
       year: "numeric",
     });
   };
@@ -219,7 +252,6 @@ export default function Profile() {
                   </div>
                 )}
 
-                {/* Uploading overlay */}
                 {uploadingAvatar && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                     <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -241,7 +273,7 @@ export default function Profile() {
               {avatarUrl && !uploadingAvatar && (
                 <button
                   type="button"
-                  onClick={handleRemoveAvatar}
+                  onClick={handleRemoveAvatarClick}
                   className="absolute top-0 right-0 w-8 h-8 bg-destructive rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition"
                 >
                   <Trash2 className="w-4 h-4 text-white" />
@@ -390,16 +422,71 @@ export default function Profile() {
                 <span className="text-sm">Joined</span>
               </div>
               <span className="text-sm font-medium">
-                {new Date(user?.createdAt).toLocaleDateString("en-US", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
+                {/* ✅ SAFE: getJoinedDate() use karo */}
+                {getJoinedDate()}
               </span>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* ✅ Remove Avatar Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.15, stiffness: 200 }}
+                    className="inline-flex items-center justify-center w-20 h-20 bg-red-500/10 rounded-full mb-5"
+                  >
+                    <AlertTriangle className="w-10 h-10 text-red-500" />
+                  </motion.div>
+
+                  <h3 className="text-2xl font-bold mb-2">Remove Photo?</h3>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Are you sure you want to remove your profile photo? This
+                    action cannot be undone.
+                  </p>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowDeleteModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="flex-1"
+                      onClick={handleConfirmRemoveAvatar}
+                    >
+                      Yes, Remove
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Message Modal */}
       <AnimatePresence>
@@ -410,9 +497,9 @@ export default function Profile() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMessageModal(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
             />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}

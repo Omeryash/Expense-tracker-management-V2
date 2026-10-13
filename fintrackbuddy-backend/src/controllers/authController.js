@@ -2,7 +2,12 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
-const { createNotification } = require("./notificationController"); // ✅ NEW
+const { createNotification } = require("./notificationController");
+const { sendEmail } = require("../utils/emailService");
+const {
+  welcomeEmail,
+  passwordChangedEmail,
+} = require("../utils/emailTemplates");
 
 // Register
 const register = async (req, res) => {
@@ -21,7 +26,6 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Check phone duplicate
     if (phone) {
       const existingPhone = await prisma.user.findUnique({
         where: { phone },
@@ -44,7 +48,6 @@ const register = async (req, res) => {
       },
     });
 
-    // ✅ Auto notification: Welcome
     await createNotification(
       newUser.id,
       "Welcome to FinTrackBuddy! 🎉",
@@ -54,6 +57,13 @@ const register = async (req, res) => {
       "/dashboard",
     );
 
+    await sendEmail({
+      to: newUser.email,
+      subject: "🎉 Welcome to FinTrackBuddy!",
+      html: welcomeEmail(newUser.name),
+      userId: newUser.id,
+    });
+
     res.status(201).json({
       message: "User registered successfully",
       user: {
@@ -61,6 +71,8 @@ const register = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone,
+        emailAlertsEnabled: newUser.emailAlertsEnabled,
+        notificationsEnabled: newUser.notificationsEnabled,
       },
     });
   } catch (error) {
@@ -106,7 +118,6 @@ const login = async (req, res) => {
         },
       });
 
-      // ✅ OTP terminal mein print karo (development ke liye)
       console.log(`\n🔐 2FA OTP for ${user.email}: ${otp}\n`);
 
       return res.json({
@@ -136,6 +147,8 @@ const login = async (req, res) => {
         avatar: user.avatar,
         twoFactorEnabled: user.twoFactorEnabled,
         notificationsEnabled: user.notificationsEnabled,
+        emailAlertsEnabled: user.emailAlertsEnabled,
+        createdAt: user.createdAt, // ✅ ADD
       },
     });
   } catch (error) {
@@ -159,6 +172,7 @@ const getMe = async (req, res) => {
         avatar: true,
         twoFactorEnabled: true,
         notificationsEnabled: true,
+        emailAlertsEnabled: true,
         createdAt: true,
       },
     });
@@ -219,7 +233,6 @@ const changePassword = async (req, res) => {
       data: { password: hashedNewPassword },
     });
 
-    // ✅ Auto notification: Password changed
     await createNotification(
       req.userId,
       "Password Changed 🔒",
@@ -227,6 +240,13 @@ const changePassword = async (req, res) => {
       "warning",
       "🔒",
     );
+
+    await sendEmail({
+      to: user.email,
+      subject: "🔒 Your Password Was Changed",
+      html: passwordChangedEmail(user.name),
+      userId: req.userId,
+    });
 
     res.json({ message: "Password changed successfully" });
   } catch (error) {
@@ -283,7 +303,6 @@ const forgotPassword = async (req, res) => {
       },
     });
 
-    // ✅ OTP terminal mein print (development)
     console.log(`\n🔐 Password Reset OTP for ${phone}: ${otp}\n`);
 
     res.json({
@@ -409,7 +428,6 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    // ✅ Auto notification: Password reset
     await createNotification(
       user.id,
       "Password Reset 🔓",
@@ -417,6 +435,12 @@ const resetPassword = async (req, res) => {
       "warning",
       "🔓",
     );
+
+    await sendEmail({
+      to: user.email,
+      subject: "🔓 Your Password Was Reset",
+      html: passwordChangedEmail(user.name),
+    });
 
     res.json({ message: "Password reset successfully" });
   } catch (error) {
@@ -471,11 +495,11 @@ const updateProfile = async (req, res) => {
         avatar: true,
         twoFactorEnabled: true,
         notificationsEnabled: true,
+        emailAlertsEnabled: true,
         createdAt: true,
       },
     });
 
-    // ✅ Auto notification: Profile updated
     await createNotification(
       req.userId,
       "Profile Updated 👤",
@@ -518,10 +542,10 @@ const uploadAvatar = async (req, res) => {
         avatar: true,
         twoFactorEnabled: true,
         notificationsEnabled: true,
+        emailAlertsEnabled: true,
       },
     });
 
-    // ✅ Auto notification: Avatar uploaded
     await createNotification(
       req.userId,
       "Profile Photo Updated 📸",
@@ -558,10 +582,10 @@ const removeAvatar = async (req, res) => {
         avatar: true,
         twoFactorEnabled: true,
         notificationsEnabled: true,
+        emailAlertsEnabled: true,
       },
     });
 
-    // ✅ Auto notification: Avatar removed
     await createNotification(
       req.userId,
       "Profile Photo Removed 🗑️",
@@ -658,6 +682,8 @@ const verifyLoginOtp = async (req, res) => {
         avatar: user.avatar,
         twoFactorEnabled: user.twoFactorEnabled,
         notificationsEnabled: user.notificationsEnabled,
+        emailAlertsEnabled: user.emailAlertsEnabled,
+        createdAt: user.createdAt, // ✅ ADD
       },
     });
   } catch (error) {
@@ -682,7 +708,6 @@ const enable2FA = async (req, res) => {
       },
     });
 
-    // ✅ Auto notification: 2FA enabled
     await createNotification(
       req.userId,
       "2FA Enabled 🛡️",
@@ -722,7 +747,6 @@ const disable2FA = async (req, res) => {
       },
     });
 
-    // ✅ Auto notification: 2FA disabled
     await createNotification(
       req.userId,
       "2FA Disabled ⚠️",
@@ -802,6 +826,42 @@ const toggleNotifications = async (req, res) => {
   }
 };
 
+// ============================================
+// ✅ TOGGLE EMAIL ALERTS
+// ============================================
+const toggleEmailAlerts = async (req, res) => {
+  try {
+    const { emailAlertsEnabled } = req.body;
+
+    if (typeof emailAlertsEnabled !== "boolean") {
+      return res.status(400).json({
+        message: "emailAlertsEnabled must be a boolean",
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { emailAlertsEnabled },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        emailAlertsEnabled: true,
+      },
+    });
+
+    res.json({
+      message: emailAlertsEnabled
+        ? "Email alerts enabled"
+        : "Email alerts disabled",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Toggle email alerts error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -818,4 +878,5 @@ module.exports = {
   disable2FA,
   get2FAStatus,
   toggleNotifications,
+  toggleEmailAlerts,
 };

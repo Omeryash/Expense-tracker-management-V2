@@ -26,15 +26,20 @@ import { useTheme } from "../context/ThemeContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useExpenses } from "../context/ExpenseContext";
 import { AuthContext } from "../context/AuthContext";
-import api from "../services/api"; // ✅ NEW
+import api from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const { currency, setCurrency, currencies } = useCurrency();
   const { expenses } = useExpenses();
-  const { changePassword, user, enable2FA, disable2FA } =
-    useContext(AuthContext);
+  const {
+    changePassword,
+    user,
+    enable2FA,
+    disable2FA,
+    toggleEmailAlerts, // ✅ NEW
+  } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState({
@@ -48,11 +53,17 @@ export default function Settings() {
     user?.twoFactorEnabled || false,
   );
 
-  // ✅ NEW: Notifications enabled state
+  // ✅ Notifications state
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     user?.notificationsEnabled ?? true,
   );
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  // ✅ NEW: Email Alerts state
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(
+    user?.emailAlertsEnabled ?? true,
+  );
+  const [emailAlertsLoading, setEmailAlertsLoading] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -68,15 +79,20 @@ export default function Settings() {
     message: "",
   });
 
-  // ✅ Sync user 2FA state when user changes
+  // ✅ Sync 2FA state
   useEffect(() => {
     setTwoFactorEnabled(user?.twoFactorEnabled || false);
   }, [user?.twoFactorEnabled]);
 
-  // ✅ Sync notifications state when user changes
+  // ✅ Sync notifications state
   useEffect(() => {
     setNotificationsEnabled(user?.notificationsEnabled ?? true);
   }, [user?.notificationsEnabled]);
+
+  // ✅ Sync email alerts state
+  useEffect(() => {
+    setEmailAlertsEnabled(user?.emailAlertsEnabled ?? true);
+  }, [user?.emailAlertsEnabled]);
 
   // Change password form state
   const [passwordData, setPasswordData] = useState({
@@ -96,14 +112,14 @@ export default function Settings() {
   };
 
   // ============================================
-  // ✅ NEW: Handle Notifications Toggle
+  // ✅ Handle Notifications Toggle
   // ============================================
   const handleNotificationsToggle = async () => {
     const newValue = !notificationsEnabled;
     setNotificationsLoading(true);
 
     try {
-      const response = await api.put("/auth/notifications-toggle", {
+      await api.put("/auth/notifications-toggle", {
         notificationsEnabled: newValue,
       });
 
@@ -120,8 +136,8 @@ export default function Settings() {
         "success",
         newValue ? "Notifications ON" : "Notifications OFF",
         newValue
-          ? "You will receive notifications from now."
-          : "You won't receive any new notifications.",
+          ? "You will receive in-app notifications from now."
+          : "You won't receive any in-app notifications.",
       );
     } catch (error) {
       const msg =
@@ -129,6 +145,33 @@ export default function Settings() {
       showMessage("error", "Failed", msg);
     } finally {
       setNotificationsLoading(false);
+    }
+  };
+
+  // ============================================
+  // ✅ NEW: Handle Email Alerts Toggle
+  // ============================================
+  const handleEmailAlertsToggle = async () => {
+    const newValue = !emailAlertsEnabled;
+    setEmailAlertsLoading(true);
+
+    try {
+      await toggleEmailAlerts(newValue);
+      setEmailAlertsEnabled(newValue);
+
+      showMessage(
+        "success",
+        newValue ? "Email Alerts ON" : "Email Alerts OFF",
+        newValue
+          ? "You will receive email alerts from now."
+          : "You won't receive any email alerts.",
+      );
+    } catch (error) {
+      const msg =
+        error.response?.data?.message || "Failed to update email alerts";
+      showMessage("error", "Failed", msg);
+    } finally {
+      setEmailAlertsLoading(false);
     }
   };
 
@@ -291,8 +334,8 @@ export default function Settings() {
       title: "Notifications",
       icon: Bell,
       description: notificationsEnabled
-        ? "You will receive notifications"
-        : "Notifications are turned off",
+        ? "You will receive in-app notifications"
+        : "In-app notifications are turned off",
       action: (
         <label className="relative inline-flex items-center cursor-pointer">
           <input
@@ -313,18 +356,23 @@ export default function Settings() {
     {
       title: "Email Alerts",
       icon: Globe,
-      description: "Receive email alerts for important updates",
+      description: emailAlertsEnabled
+        ? "You will receive email alerts"
+        : "Email alerts are turned off",
       action: (
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
-            checked={settings.emailAlerts}
-            onChange={() =>
-              setSettings({ ...settings, emailAlerts: !settings.emailAlerts })
-            }
+            checked={emailAlertsEnabled}
+            onChange={handleEmailAlertsToggle}
+            disabled={emailAlertsLoading}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          <div
+            className={`w-11 h-6 rounded-full peer-focus:outline-none peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${
+              emailAlertsLoading ? "opacity-50" : ""
+            } ${emailAlertsEnabled ? "bg-primary" : "bg-muted"}`}
+          ></div>
         </label>
       ),
     },
@@ -431,7 +479,10 @@ export default function Settings() {
                         : section.title === "Notifications" &&
                             notificationsEnabled
                           ? "bg-primary/10"
-                          : "bg-muted"
+                          : section.title === "Email Alerts" &&
+                              emailAlertsEnabled
+                            ? "bg-primary/10"
+                            : "bg-muted"
                     }`}
                   >
                     <section.icon
@@ -441,7 +492,10 @@ export default function Settings() {
                           : section.title === "Notifications" &&
                               notificationsEnabled
                             ? "text-primary"
-                            : ""
+                            : section.title === "Email Alerts" &&
+                                emailAlertsEnabled
+                              ? "text-primary"
+                              : ""
                       }`}
                     />
                   </div>

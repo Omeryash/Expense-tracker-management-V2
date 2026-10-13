@@ -15,7 +15,8 @@ const {
   enable2FA,
   disable2FA,
   get2FAStatus,
-  toggleNotifications, // ✅ NEW
+  toggleNotifications,
+  toggleEmailAlerts, // ✅ NEW
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -49,7 +50,10 @@ router.post("/2fa/enable", authMiddleware, enable2FA);
 router.post("/2fa/disable", authMiddleware, disable2FA);
 router.get("/2fa/status", authMiddleware, get2FAStatus);
 
-// ✅ NEW: Notifications toggle
+// ✅ Notifications toggle
 router.put("/notifications-toggle", authMiddleware, toggleNotifications);
+
+// ✅ NEW: Email Alerts toggle
+router.put("/toggle-email-alerts", authMiddleware, toggleEmailAlerts);
 
 module.exports = router;

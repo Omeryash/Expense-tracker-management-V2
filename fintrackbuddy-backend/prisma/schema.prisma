@@ -36,6 +36,7 @@ model User {
 
   // ✅ NEW: Notification preference
   notificationsEnabled Boolean @default(true)
+   emailAlertsEnabled   Boolean @default(true)   // ✅ NEW - Email
 
   // Relations
   expenses      Expense[]
