@@ -122,7 +122,25 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ============================================
-  // ✅ NEW: Toggle Email Alerts
+  // ✅ Toggle Notifications
+  // ============================================
+  const toggleNotifications = async (notificationsEnabled) => {
+    const response = await api.put("/auth/notifications-toggle", {
+      notificationsEnabled,
+    });
+
+    // Update user state
+    if (user) {
+      const updatedUser = { ...user, notificationsEnabled };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    }
+
+    return response.data;
+  };
+
+  // ============================================
+  // ✅ Toggle Email Alerts
   // ============================================
   const toggleEmailAlerts = async (emailAlertsEnabled) => {
     const response = await api.put("/auth/toggle-email-alerts", {
@@ -153,7 +171,8 @@ export const AuthProvider = ({ children }) => {
         verifyLoginOtp,
         enable2FA,
         disable2FA,
-        toggleEmailAlerts, // ✅ ADD
+        toggleNotifications, // ✅ ADD
+        toggleEmailAlerts,
       }}
     >
       {children}
