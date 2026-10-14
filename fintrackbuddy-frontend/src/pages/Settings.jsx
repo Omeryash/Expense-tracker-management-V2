@@ -26,7 +26,6 @@ import { useTheme } from "../context/ThemeContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useExpenses } from "../context/ExpenseContext";
 import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Settings() {
@@ -38,7 +37,8 @@ export default function Settings() {
     user,
     enable2FA,
     disable2FA,
-    toggleEmailAlerts, // ✅ NEW
+    toggleNotifications, // ✅ ADD
+    toggleEmailAlerts,
   } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -59,7 +59,7 @@ export default function Settings() {
   );
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
-  // ✅ NEW: Email Alerts state
+  // ✅ Email Alerts state
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(
     user?.emailAlertsEnabled ?? true,
   );
@@ -112,25 +112,16 @@ export default function Settings() {
   };
 
   // ============================================
-  // ✅ Handle Notifications Toggle
+  // ✅ Handle Notifications Toggle (FIXED)
   // ============================================
   const handleNotificationsToggle = async () => {
     const newValue = !notificationsEnabled;
     setNotificationsLoading(true);
 
     try {
-      await api.put("/auth/notifications-toggle", {
-        notificationsEnabled: newValue,
-      });
-
+      // ✅ Context function use karo (user state update hoga)
+      await toggleNotifications(newValue);
       setNotificationsEnabled(newValue);
-
-      // Update user in localStorage
-      const updatedUser = {
-        ...user,
-        notificationsEnabled: newValue,
-      };
-      localStorage.setItem("user", JSON.stringify(updatedUser));
 
       showMessage(
         "success",
@@ -149,7 +140,7 @@ export default function Settings() {
   };
 
   // ============================================
-  // ✅ NEW: Handle Email Alerts Toggle
+  // ✅ Handle Email Alerts Toggle
   // ============================================
   const handleEmailAlertsToggle = async () => {
     const newValue = !emailAlertsEnabled;
@@ -438,7 +429,6 @@ export default function Settings() {
           </p>
         </div>
 
-        {/* ✅ Change Password Card */}
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
