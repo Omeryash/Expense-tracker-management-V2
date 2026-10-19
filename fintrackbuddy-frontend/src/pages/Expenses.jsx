@@ -10,8 +10,11 @@ import {
   Trash2,
   Calendar as CalendarIcon,
   X,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useExpenses } from "../context/ExpenseContext";
 
 export default function Expenses() {
@@ -21,6 +24,18 @@ export default function Expenses() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [editingId, setEditingId] = useState(null);
+
+  // ✅ NEW: Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
+
+  // ✅ NEW: Message modal state
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageData, setMessageData] = useState({
+    type: "success",
+    title: "",
+    message: "",
+  });
 
   const [formData, setFormData] = useState({
     title: "",
@@ -44,6 +59,11 @@ export default function Expenses() {
     Entertainment: "🎬",
     Bills: "📄",
     Shopping: "🛍️",
+  };
+
+  const showMessage = (type, title, message) => {
+    setMessageData({ type, title, message });
+    setShowMessageModal(true);
   };
 
   const onlyExpenses = expenses.filter((e) => e.type === "expense");
@@ -87,9 +107,23 @@ export default function Expenses() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Delete this expense?")) {
-      deleteExpense(id);
+  // ✅ NEW: Delete click (open modal)
+  const handleDeleteClick = (expense) => {
+    setExpenseToDelete(expense);
+    setShowDeleteModal(true);
+  };
+
+  // ✅ NEW: Confirm delete
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteExpense(expenseToDelete.id);
+      setShowDeleteModal(false);
+      setExpenseToDelete(null);
+      showMessage("success", "Deleted!", "Expense removed successfully.");
+    } catch (error) {
+      setShowDeleteModal(false);
+      setExpenseToDelete(null);
+      showMessage("error", "Failed", "Could not delete expense.");
     }
   };
 
@@ -97,7 +131,7 @@ export default function Expenses() {
     e.preventDefault();
 
     if (!formData.title || !formData.amount) {
-      alert("Please fill all required fields");
+      showMessage("error", "Missing Fields", "Please fill all required fields");
       return;
     }
 
@@ -106,12 +140,22 @@ export default function Expenses() {
         ...formData,
         icon: categoryIcons[formData.category] || "💸",
       });
+      showMessage(
+        "success",
+        "Expense Updated!",
+        "Your expense has been updated successfully.",
+      );
     } else {
       addExpense({
         ...formData,
         icon: categoryIcons[formData.category] || "💸",
         type: "expense",
       });
+      showMessage(
+        "success",
+        "Expense Added!",
+        "Your expense has been added successfully.",
+      );
     }
 
     setFormData({
@@ -232,8 +276,9 @@ export default function Expenses() {
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
+                      {/* ✅ Updated delete click handler */}
                       <button
-                        onClick={() => handleDelete(expense.id)}
+                        onClick={() => handleDeleteClick(expense)}
                         className="p-2 rounded-lg hover:bg-destructive/10 transition text-destructive"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -358,6 +403,135 @@ export default function Expenses() {
           </motion.div>
         </div>
       )}
+
+      {/* ✅ Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && expenseToDelete && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.15, stiffness: 200 }}
+                    className="inline-flex items-center justify-center w-20 h-20 bg-red-500/10 rounded-full mb-5"
+                  >
+                    <AlertTriangle className="w-10 h-10 text-red-500" />
+                  </motion.div>
+
+                  <h3 className="text-2xl font-bold mb-2">Delete Expense?</h3>
+
+                  <p className="text-muted-foreground text-sm mb-6">
+                    Are you sure you want to delete{" "}
+                    <strong className="text-foreground">
+                      "{expenseToDelete.title}"
+                    </strong>
+                    ? This action cannot be undone.
+                  </p>
+
+                  {/* Expense preview */}
+           
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowDeleteModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="flex-1"
+                      onClick={handleConfirmDelete}
+                    >
+                      Yes, Delete
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ Message Modal */}
+      <AnimatePresence>
+        {showMessageModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMessageModal(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="relative w-full max-w-sm"
+              >
+                <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+                  <div className="p-8 text-center">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        type: "spring",
+                        delay: 0.15,
+                        stiffness: 200,
+                      }}
+                      className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-5 ${
+                        messageData.type === "success"
+                          ? "bg-green-500/10"
+                          : "bg-red-500/10"
+                      }`}
+                    >
+                      {messageData.type === "success" ? (
+                        <CheckCircle2 className="w-10 h-10 text-green-500" />
+                      ) : (
+                        <XCircle className="w-10 h-10 text-red-500" />
+                      )}
+                    </motion.div>
+
+                    <h3 className="text-2xl font-bold mb-2">
+                      {messageData.title}
+                    </h3>
+
+                    <p className="text-muted-foreground text-sm mb-6">
+                      {messageData.message}
+                    </p>
+
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowMessageModal(false)}
+                    >
+                      OK
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
